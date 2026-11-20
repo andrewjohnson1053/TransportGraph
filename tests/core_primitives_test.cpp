@@ -1,7 +1,9 @@
 #include "core/Camera2D.h"
+#include "core/HitTesting.h"
 #include "core/Types.h"
 #include "sim/SimLoop.h"
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -134,11 +136,71 @@ bool test_camera()
 				   "invalid coordinates produce finite transform results") && passed;
 	return passed;
 }
+
+bool test_hit_testing()
+{
+	core::Camera2D camera;
+	bool passed = check(camera.set_viewport_size({100.0f, 100.0f}), "hit-test camera viewport is set");
+
+	const std::array nodes{
+		core::NodePick{core::NodeId{8}, {0.0f, 0.0f}},
+		core::NodePick{core::NodeId{3}, {2.0f, 0.0f}},
+		core::NodePick{core::NodeId{core::InvalidId}, {0.0f, 0.0f}}
+	};
+	const auto nearest_node = core::find_nearest_node(nodes, camera, {53.0f, 50.0f}, 6.0f);
+	passed = check(nearest_node && nearest_node->value() == 3, "nearest node is selected from overlapping candidates") && passed;
+	passed = check(!core::find_nearest_node(nodes, camera, {90.0f, 90.0f}, 6.0f),
+				   "node outside pick radius is not selected") && passed;
+
+	const std::array tied_nodes{
+		core::NodePick{core::NodeId{9}, {4.0f, 3.0f}},
+		core::NodePick{core::NodeId{2}, {4.0f, 3.0f}}
+	};
+	const glm::vec2 tied_node_screen = camera.world_to_screen({4.0f, 3.0f});
+	const auto tied_node = core::find_nearest_node(tied_nodes, camera, tied_node_screen, 5.0f);
+	passed = check(tied_node && tied_node->value() == 2, "overlapping nodes resolve deterministically by ID") && passed;
+
+	const std::array zoom_node{core::NodePick{core::NodeId{1}, {4.0f, 0.0f}}};
+	passed = check(core::find_nearest_node(zoom_node, camera, {50.0f, 50.0f}, 5.0f).has_value(),
+				   "node hit radius is measured in screen pixels at normal zoom") && passed;
+	passed = check(camera.set_zoom(2.0f), "hit-test camera zoom is changed") && passed;
+	passed = check(!core::find_nearest_node(zoom_node, camera, {50.0f, 50.0f}, 5.0f),
+				   "world-space pick radius shrinks as zoom increases") && passed;
+	passed = check(!core::find_nearest_node(nodes, camera, {50.0f, 50.0f}, 0.0f),
+				   "zero pick radius is rejected") && passed;
+	passed = check(!core::find_nearest_node(nodes, camera,
+										 {std::numeric_limits<float>::quiet_NaN(), 50.0f}, 5.0f),
+				   "non-finite cursor is rejected") && passed;
+
+	passed = check(camera.set_zoom(1.0f), "edge tests use normal zoom") && passed;
+	const std::array edges{
+		core::EdgePick{core::EdgeId{9}, {0.0f, 2.0f}, {10.0f, 2.0f}},
+		core::EdgePick{core::EdgeId{4}, {0.0f, 0.5f}, {10.0f, 0.5f}},
+		core::EdgePick{core::EdgeId{core::InvalidId}, {0.0f, 1.5f}, {10.0f, 1.5f}}
+	};
+	const glm::vec2 edge_cursor = camera.world_to_screen({5.0f, 1.5f});
+	const auto nearest_edge = core::find_nearest_edge(edges, camera, edge_cursor, 2.0f);
+	passed = check(nearest_edge && nearest_edge->value() == 9, "nearest edge is selected by segment distance") && passed;
+	passed = check(!core::find_nearest_edge(edges, camera, {90.0f, 90.0f}, 2.0f),
+				   "edge outside pick radius is not selected") && passed;
+
+	const std::array tied_edges{
+		core::EdgePick{core::EdgeId{8}, {0.0f, 5.0f}, {10.0f, 5.0f}},
+		core::EdgePick{core::EdgeId{2}, {0.0f, 5.0f}, {10.0f, 5.0f}}
+	};
+	const auto tied_edge = core::find_nearest_edge(tied_edges, camera, camera.world_to_screen({5.0f, 5.0f}), 2.0f);
+	passed = check(tied_edge && tied_edge->value() == 2, "overlapping edges resolve deterministically by ID") && passed;
+
+	const std::array point_edge{core::EdgePick{core::EdgeId{5}, {3.0f, 3.0f}, {3.0f, 3.0f}}};
+	const auto degenerate_edge = core::find_nearest_edge(point_edge, camera, camera.world_to_screen({3.0f, 3.0f}), 1.0f);
+	passed = check(degenerate_edge && degenerate_edge->value() == 5, "zero-length edge uses point distance safely") && passed;
+	return passed;
+}
 }
 
 int main()
 {
-	const bool passed = test_types() && test_sim_loop() && test_camera();
+	const bool passed = test_types() && test_sim_loop() && test_camera() && test_hit_testing();
 	if (passed)
 	{
 		std::cout << "Core primitive tests passed.\n";

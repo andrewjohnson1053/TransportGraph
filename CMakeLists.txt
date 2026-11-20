@@ -16,6 +16,7 @@ find_package(imgui CONFIG REQUIRED)
 set(ENGINE_SOURCES
     src/core/App.cpp
     src/core/Camera2D.cpp
+    src/core/HitTesting.cpp
     src/sim/Graph.cpp
     src/gfx/VectorRenderer.cpp
     src/ui/InspectorUI.cpp
@@ -24,6 +25,7 @@ set(ENGINE_SOURCES
 set(ENGINE_HEADERS
     src/core/App.h
     src/core/Camera2D.h
+    src/core/HitTesting.h
     src/core/Types.h
     src/sim/Graph.h
     src/sim/SimLoop.h
@@ -75,6 +77,7 @@ set_tests_properties(GraphSmokeTest PROPERTIES
 add_executable(CorePrimitivesTest
     tests/core_primitives_test.cpp
     src/core/Camera2D.cpp
+    src/core/HitTesting.cpp
 )
 target_include_directories(CorePrimitivesTest PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
