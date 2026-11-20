@@ -1,4 +1,7 @@
+#include "core/App.h"
+
 int main()
 {
-    return 0;
+    core::App app;
+    return app.run();
 }

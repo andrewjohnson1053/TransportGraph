@@ -17,7 +17,7 @@
 * [x] **Subtask 1.2.2:** Implement `Camera2D` (`src/core/Camera2D.h/.cpp`) storing `glm::vec2 center_world`, `float zoom`, `float min_zoom`, `float max_zoom`, and `glm::vec2 viewport_size_px`.
 * [x] **Subtask 1.2.3:** Add `screen_to_world(vec2 screen_px)` and `world_to_screen(vec2 world_pos)` transforms, cursor-anchored zoom around the mouse pointer, and middle/right-drag + keyboard panning.
 * [x] **Subtask 1.2.4:** Implement `find_nearest_node` and `find_nearest_edge` world-space hit-testing with zoom-aware pick radius for selection and route building.
-* [ ] **Subtask 1.2.5:** Wire `App` (`src/core/App.h/.cpp`) and `src/main.cpp` to initialize SDL3 window/renderer, Dear ImGui SDL3 bindings, input polling, fixed sim ticks, and rendering, shutting down cleanly without leaks.
+* [x] **Subtask 1.2.5:** Wire `App` (`src/core/App.h/.cpp`) and `src/main.cpp` to initialize SDL3 window/renderer, Dear ImGui SDL3 bindings, input polling, fixed sim ticks, and rendering, shutting down cleanly without leaks.
 
 ### Task 1.3: Schematic Vector Graph & Vehicle Renderer
 * [ ] **Subtask 1.3.1:** Implement batched line/quad drawing utilities in `VectorRenderer` (`src/gfx/VectorRenderer.h/.cpp`) applying world-to-screen transforms and zoom-scaled thicknesses.
