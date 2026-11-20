@@ -16,8 +16,11 @@ namespace
 {
 constexpr int initial_window_width = 1280;
 constexpr int initial_window_height = 720;
+constexpr std::uint64_t target_frame_duration_ns = 1'000'000'000ULL / 60ULL;
+constexpr double nanoseconds_per_second = 1'000'000'000.0;
 constexpr double keyboard_pan_speed = 600.0;
 constexpr float zoom_per_wheel_unit = 1.1f;
+constexpr float default_ui_scale = 1.25f;
 
 bool key_is_down(const bool* keyboard_state, int key_count, SDL_Scancode key) noexcept
 {
@@ -49,7 +52,7 @@ bool App::initialize()
         "Transport Graph",
         initial_window_width,
         initial_window_height,
-        SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
+        SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_MAXIMIZED);
     if (window_ == nullptr)
     {
         std::cerr << "SDL window creation failed: " << SDL_GetError() << '\n';
@@ -85,6 +88,10 @@ bool App::initialize()
     }
     imgui_context_created_ = true;
     ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.ScaleAllSizes(default_ui_scale);
+    style.FontScaleMain = default_ui_scale;
+    ui_scale_ = default_ui_scale;
 
     if (!ImGui_ImplSDL3_InitForSDLRenderer(window_, renderer_))
     {
@@ -113,18 +120,19 @@ int App::run()
         return 1;
     }
 
-    std::uint64_t previous_ticks = SDL_GetTicks();
+    std::uint64_t previous_frame_start_ns = SDL_GetTicksNS();
     while (running_)
     {
+        const std::uint64_t frame_start_ns = SDL_GetTicksNS();
+        const double frame_dt = static_cast<double>(frame_start_ns - previous_frame_start_ns) /
+                                nanoseconds_per_second;
+        previous_frame_start_ns = frame_start_ns;
+
         process_events();
         if (!running_)
         {
             break;
         }
-
-        const std::uint64_t current_ticks = SDL_GetTicks();
-        const double frame_dt = static_cast<double>(current_ticks - previous_ticks) / 1000.0;
-        previous_ticks = current_ticks;
         update_keyboard_pan(frame_dt);
 
         const std::size_t step_count = sim_loop_.advance(frame_dt);
@@ -144,7 +152,11 @@ int App::run()
         }
         if (!vsync_enabled_)
         {
-            SDL_Delay(1);
+            const std::uint64_t elapsed_ns = SDL_GetTicksNS() - frame_start_ns;
+            if (elapsed_ns < target_frame_duration_ns)
+            {
+                SDL_DelayNS(target_frame_duration_ns - elapsed_ns);
+            }
         }
     }
     return runtime_error_ ? 1 : 0;
@@ -394,8 +406,18 @@ bool App::render_frame()
 
 void App::draw_controls()
 {
+    ImGui::SetNextWindowSize({520.0f, 420.0f}, ImGuiCond_FirstUseEver);
     ImGui::Begin("Transport Graph");
     ImGui::TextUnformatted("Application framework ready");
+
+    float requested_ui_scale = ui_scale_;
+    if (ImGui::SliderFloat("UI scale", &requested_ui_scale, 0.8f, 2.0f, "%.2fx"))
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.ScaleAllSizes(requested_ui_scale / ui_scale_);
+        style.FontScaleMain = requested_ui_scale;
+        ui_scale_ = requested_ui_scale;
+    }
 
     bool paused = sim_loop_.is_paused();
     if (ImGui::Checkbox("Paused", &paused))

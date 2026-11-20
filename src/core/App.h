@@ -50,6 +50,7 @@ private:
     bool running_ = false;
     bool runtime_error_ = false;
     bool pan_drag_active_ = false;
+    float ui_scale_ = 1.0f;
     SimulationTick simulation_tick_ = nullptr;
     void* simulation_context_ = nullptr;
     Camera2D camera_;
