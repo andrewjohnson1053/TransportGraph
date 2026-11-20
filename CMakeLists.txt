@@ -50,10 +50,11 @@ target_link_libraries(TransportGraph PRIVATE
 
 # Compiler warnings
 if(MSVC)
-    target_compile_options(TransportGraph PRIVATE /W4 /permissive-)
+    set(PROJECT_WARNING_OPTIONS /W4 /permissive-)
 else()
-    target_compile_options(TransportGraph PRIVATE -Wall -Wextra -Wpedantic)
+    set(PROJECT_WARNING_OPTIONS -Wall -Wextra -Wpedantic)
 endif()
+target_compile_options(TransportGraph PRIVATE ${PROJECT_WARNING_OPTIONS})
 
 # Copy assets next to executable after build
 add_custom_command(TARGET TransportGraph POST_BUILD
@@ -62,17 +63,11 @@ add_custom_command(TARGET TransportGraph POST_BUILD
         $<TARGET_FILE_DIR:TransportGraph>/assets
 )
 
-# Optional smoke test executable
+# Verify post-build asset copying
 enable_testing()
-add_executable(GraphSmokeTest
-    tests/graph_smoke_test.cpp
-    src/sim/Graph.cpp
-)
-target_include_directories(GraphSmokeTest PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(GraphSmokeTest PRIVATE
-    glm::glm
-    nlohmann_json::nlohmann_json
-)
+add_executable(GraphSmokeTest tests/graph_smoke_test.cpp)
+target_compile_options(GraphSmokeTest PRIVATE ${PROJECT_WARNING_OPTIONS})
 add_test(NAME GraphSmokeTest COMMAND GraphSmokeTest)
+set_tests_properties(GraphSmokeTest PROPERTIES
+    WORKING_DIRECTORY "$<TARGET_FILE_DIR:TransportGraph>"
+)
