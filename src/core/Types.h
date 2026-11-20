@@ -1,20 +1,47 @@
 #pragma once
 
+#include <compare>
 #include <cstdint>
 #include <limits>
 
 namespace core
 {
-using NodeId = std::uint32_t;
-using EdgeId = std::uint32_t;
-using VehicleId = std::uint32_t;
-using RouteId = std::uint32_t;
-using DepotId = std::uint32_t;
-using WorkerId = std::uint32_t;
-using ContractId = std::uint32_t;
-using CompanyId = std::uint32_t;
-
 inline constexpr std::uint32_t InvalidId = std::numeric_limits<std::uint32_t>::max();
+
+template <typename Tag>
+class Id
+{
+public:
+    constexpr Id() noexcept = default;
+    explicit constexpr Id(std::uint32_t value) noexcept : value_(value) {}
+
+    constexpr std::uint32_t value() const noexcept { return value_; }
+    constexpr bool is_valid() const noexcept { return value_ != InvalidId; }
+
+    constexpr bool operator==(const Id&) const noexcept = default;
+    constexpr auto operator<=>(const Id&) const noexcept = default;
+
+private:
+    std::uint32_t value_ = InvalidId;
+};
+
+struct NodeIdTag;
+struct EdgeIdTag;
+struct VehicleIdTag;
+struct RouteIdTag;
+struct DepotIdTag;
+struct WorkerIdTag;
+struct ContractIdTag;
+struct CompanyIdTag;
+
+using NodeId = Id<NodeIdTag>;
+using EdgeId = Id<EdgeIdTag>;
+using VehicleId = Id<VehicleIdTag>;
+using RouteId = Id<RouteIdTag>;
+using DepotId = Id<DepotIdTag>;
+using WorkerId = Id<WorkerIdTag>;
+using ContractId = Id<ContractIdTag>;
+using CompanyId = Id<CompanyIdTag>;
 
 enum class RoadClass : std::uint8_t
 {

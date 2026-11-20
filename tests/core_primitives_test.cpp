@@ -26,16 +26,27 @@ bool near(float actual, float expected, float tolerance = 1.0e-4f)
 
 bool test_types()
 {
-	static_assert(std::is_same_v<core::NodeId, std::uint32_t>);
-	static_assert(std::is_same_v<core::EdgeId, std::uint32_t>);
-	static_assert(std::is_same_v<core::VehicleId, std::uint32_t>);
-	static_assert(std::is_same_v<core::RouteId, std::uint32_t>);
-	static_assert(std::is_same_v<core::DepotId, std::uint32_t>);
-	static_assert(std::is_same_v<core::WorkerId, std::uint32_t>);
-	static_assert(std::is_same_v<core::ContractId, std::uint32_t>);
-	static_assert(std::is_same_v<core::CompanyId, std::uint32_t>);
+	static_assert(sizeof(core::NodeId) == sizeof(std::uint32_t));
+	static_assert(sizeof(core::EdgeId) == sizeof(std::uint32_t));
+	static_assert(sizeof(core::VehicleId) == sizeof(std::uint32_t));
+	static_assert(sizeof(core::RouteId) == sizeof(std::uint32_t));
+	static_assert(sizeof(core::DepotId) == sizeof(std::uint32_t));
+	static_assert(sizeof(core::WorkerId) == sizeof(std::uint32_t));
+	static_assert(sizeof(core::ContractId) == sizeof(std::uint32_t));
+	static_assert(sizeof(core::CompanyId) == sizeof(std::uint32_t));
+	static_assert(!std::is_same_v<core::NodeId, core::EdgeId>);
+	static_assert(!std::is_same_v<core::VehicleId, core::RouteId>);
+	static_assert(!std::is_convertible_v<core::NodeId, core::EdgeId>);
+	static_assert(!std::is_convertible_v<core::EdgeId, core::NodeId>);
+	static_assert(!std::is_assignable_v<core::NodeId&, core::EdgeId>);
+	static_assert(std::is_constructible_v<core::NodeId, std::uint32_t>);
+	static_assert(!std::is_convertible_v<std::uint32_t, core::NodeId>);
 
-	return check(core::InvalidId == std::numeric_limits<std::uint32_t>::max(), "InvalidId uses the uint32 maximum");
+	const core::NodeId invalid_node;
+	const core::NodeId node{7};
+	return check(core::InvalidId == std::numeric_limits<std::uint32_t>::max(), "InvalidId uses the uint32 maximum") &&
+		   check(!invalid_node.is_valid(), "default ID represents an invalid pool index") &&
+		   check(node.is_valid() && node.value() == 7, "ID explicitly stores and exposes its pool index");
 }
 
 bool test_sim_loop()
