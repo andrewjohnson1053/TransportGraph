@@ -71,3 +71,14 @@ add_test(NAME GraphSmokeTest COMMAND GraphSmokeTest)
 set_tests_properties(GraphSmokeTest PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:TransportGraph>"
 )
+
+add_executable(CorePrimitivesTest
+    tests/core_primitives_test.cpp
+    src/core/Camera2D.cpp
+)
+target_include_directories(CorePrimitivesTest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(CorePrimitivesTest PRIVATE glm::glm)
+target_compile_options(CorePrimitivesTest PRIVATE ${PROJECT_WARNING_OPTIONS})
+add_test(NAME CorePrimitivesTest COMMAND CorePrimitivesTest)
