@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "transport-graph",
+  "version-string": "0.1.0",
+  "builtin-baseline": "527b18425737adaae8c9b293c92c5651da536043",
+  "dependencies": [
+    "sdl3",
+    "glm",
+    "nlohmann-json",
+    {
+      "name": "imgui",
+      "features": [
+        "sdl3-binding",
+        "sdl3-renderer-binding",
+        "docking-experimental"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# Visual Studio & CMake
+.vs/
+out/
+build/
+CMakeUserPresets.json
+
+# vcpkg manifest downloads
+vcpkg_installed/
+
+# Compiled binaries
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ilk

@@ -1,0 +1,78 @@
+cmake_minimum_required(VERSION 3.24)
+project(TransportGraph VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Export compile commands for tooling
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+find_package(SDL3 CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
+find_package(imgui CONFIG REQUIRED)
+
+set(ENGINE_SOURCES
+    src/core/App.cpp
+    src/core/Camera2D.cpp
+    src/sim/Graph.cpp
+    src/gfx/VectorRenderer.cpp
+    src/ui/InspectorUI.cpp
+)
+
+set(ENGINE_HEADERS
+    src/core/App.h
+    src/core/Camera2D.h
+    src/core/Types.h
+    src/sim/Graph.h
+    src/sim/SimLoop.h
+    src/gfx/VectorRenderer.h
+    src/ui/InspectorUI.h
+)
+
+add_executable(TransportGraph
+    src/main.cpp
+    ${ENGINE_SOURCES}
+    ${ENGINE_HEADERS}
+)
+
+target_include_directories(TransportGraph PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(TransportGraph PRIVATE
+    SDL3::SDL3
+    glm::glm
+    nlohmann_json::nlohmann_json
+    imgui::imgui
+)
+
+# Compiler warnings
+if(MSVC)
+    target_compile_options(TransportGraph PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(TransportGraph PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# Copy assets next to executable after build
+add_custom_command(TARGET TransportGraph POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets
+        $<TARGET_FILE_DIR:TransportGraph>/assets
+)
+
+# Optional smoke test executable
+enable_testing()
+add_executable(GraphSmokeTest
+    tests/graph_smoke_test.cpp
+    src/sim/Graph.cpp
+)
+target_include_directories(GraphSmokeTest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(GraphSmokeTest PRIVATE
+    glm::glm
+    nlohmann_json::nlohmann_json
+)
+add_test(NAME GraphSmokeTest COMMAND GraphSmokeTest)
