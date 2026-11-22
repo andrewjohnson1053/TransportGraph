@@ -85,3 +85,15 @@ target_include_directories(CorePrimitivesTest PRIVATE
 target_link_libraries(CorePrimitivesTest PRIVATE glm::glm)
 target_compile_options(CorePrimitivesTest PRIVATE ${PROJECT_WARNING_OPTIONS})
 add_test(NAME CorePrimitivesTest COMMAND CorePrimitivesTest)
+
+add_executable(VectorRendererTest
+    tests/vector_renderer_test.cpp
+    src/gfx/VectorRenderer.cpp
+    src/core/Camera2D.cpp
+)
+target_include_directories(VectorRendererTest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(VectorRendererTest PRIVATE SDL3::SDL3 glm::glm)
+target_compile_options(VectorRendererTest PRIVATE ${PROJECT_WARNING_OPTIONS})
+add_test(NAME VectorRendererTest COMMAND VectorRendererTest)

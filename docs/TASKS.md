@@ -20,11 +20,11 @@
 * [x] **Subtask 1.2.5:** Wire `App` (`src/core/App.h/.cpp`) and `src/main.cpp` to initialize SDL3 window/renderer, Dear ImGui SDL3 bindings, input polling, fixed sim ticks, and rendering, shutting down cleanly without leaks.
 
 ### Task 1.3: Schematic Vector Graph & Vehicle Renderer
-* [ ] **Subtask 1.3.1:** Implement batched line/quad drawing utilities in `VectorRenderer` (`src/gfx/VectorRenderer.h/.cpp`) applying world-to-screen transforms and zoom-scaled thicknesses.
-* [ ] **Subtask 1.3.2:** Render road edges in Default Mode using distinct colors and widths for `SingleLane` (thin light gray), `TwoLane` (medium gray), `MultiLane` (blue), and `Highway` (thick orange).
-* [ ] **Subtask 1.3.3:** Implement Traffic Saturation Heatmap mode (`bool show_heatmap`) interpolating edge colors from green (`0.0`) through yellow (`0.7`) to red (`>= 1.0+` congestion).
-* [ ] **Subtask 1.3.4:** Render nodes as crisp schematic markers (`Intersection`, `Stop`, `Terminal`, `DepotAnchor`, `RegionalGateway`) with hover/selection rings and clean numeric queue badges (no per-node pie charts).
-* [ ] **Subtask 1.3.5:** Render vehicles along edges from their `(current_edge_id, edge_dist_m)` coordinates and add Competitor Focus Mode (`selected_rival_id`) highlighting a chosen rival's lines and vehicles without changing base road-class colors.
+* [x] **Subtask 1.3.1:** Implement batched line/quad drawing utilities in `VectorRenderer` (`src/gfx/VectorRenderer.h/.cpp`) applying world-to-screen transforms and zoom-scaled thicknesses.
+* [x] **Subtask 1.3.2:** Render road edges in Default Mode using distinct colors and widths for `SingleLane` (thin light gray), `TwoLane` (medium gray), `MultiLane` (blue), and `Highway` (thick orange).
+* [x] **Subtask 1.3.3:** Implement Traffic Saturation Heatmap mode (`bool show_heatmap`) interpolating edge colors from green (`0.0`) through yellow (`0.7`) to red (`>= 1.0+` congestion).
+* [x] **Subtask 1.3.4:** Render nodes as crisp schematic markers (`Intersection`, `Stop`, `Terminal`, `DepotAnchor`, `RegionalGateway`) with hover/selection rings and clean numeric queue badges (no per-node pie charts).
+* [x] **Subtask 1.3.5:** Render vehicles along edges from their `(current_edge_id, edge_dist_m)` coordinates and add Competitor Focus Mode (`selected_rival_id`) highlighting a chosen rival's lines and vehicles without changing base road-class colors.
 
 ---
 

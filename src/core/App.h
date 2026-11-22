@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Camera2D.h"
+#include "gfx/VectorRenderer.h"
 #include "sim/SimLoop.h"
 
 #include <cstdint>
@@ -36,6 +37,7 @@ public:
 private:
     bool update_viewport_size() noexcept;
     void process_events();
+    void update_hover(glm::vec2 cursor_screen_px);
     void update_keyboard_pan(double frame_dt);
     bool render_frame();
     void draw_controls();
@@ -55,5 +57,7 @@ private:
     void* simulation_context_ = nullptr;
     Camera2D camera_;
     sim::SimLoop sim_loop_;
+    gfx::VectorRenderer vector_renderer_;
+    gfx::RenderOptions render_options_;
 };
 }

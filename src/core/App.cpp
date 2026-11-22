@@ -1,14 +1,19 @@
 #include "core/App.h"
 
+#include "core/HitTesting.h"
+
 #include <SDL3/SDL.h>
 #include <imgui.h>
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_sdlrenderer3.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <span>
+#include <string>
 
 namespace core
 {
@@ -26,6 +31,75 @@ bool key_is_down(const bool* keyboard_state, int key_count, SDL_Scancode key) no
 {
     const int index = static_cast<int>(key);
     return keyboard_state != nullptr && index >= 0 && index < key_count && keyboard_state[index];
+}
+
+struct DemoSceneView
+{
+    gfx::RenderScene render_scene;
+    std::span<const NodePick> node_picks;
+    std::span<const EdgePick> edge_picks;
+};
+
+const DemoSceneView& demo_scene()
+{
+    static const std::array<gfx::RenderNode, 8> nodes{{
+        {NodeId{0}, {-450.0f, -250.0f}, NodeType::Intersection, 0},
+        {NodeId{1}, {-150.0f, -250.0f}, NodeType::Stop, 18},
+        {NodeId{2}, {150.0f, -250.0f}, NodeType::Intersection, 0},
+        {NodeId{3}, {450.0f, -250.0f}, NodeType::Terminal, 42},
+        {NodeId{4}, {450.0f, 100.0f}, NodeType::DepotAnchor, 0},
+        {NodeId{5}, {150.0f, 100.0f}, NodeType::RegionalGateway, 0},
+        {NodeId{6}, {-150.0f, 100.0f}, NodeType::Stop, 7},
+        {NodeId{7}, {-450.0f, 100.0f}, NodeType::Intersection, 0}
+    }};
+    static const std::array<gfx::RenderEdge, 9> edges{{
+        {EdgeId{0}, NodeId{0}, NodeId{1}, RoadClass::SingleLane, 1, 300.0f, 0.1f},
+        {EdgeId{1}, NodeId{1}, NodeId{2}, RoadClass::TwoLane, 2, 300.0f, 0.45f},
+        {EdgeId{2}, NodeId{2}, NodeId{3}, RoadClass::MultiLane, 4, 300.0f, 0.76f},
+        {EdgeId{3}, NodeId{3}, NodeId{4}, RoadClass::Highway, 6, 350.0f, 1.15f},
+        {EdgeId{4}, NodeId{4}, NodeId{5}, RoadClass::TwoLane, 2, 300.0f, 0.2f},
+        {EdgeId{5}, NodeId{5}, NodeId{6}, RoadClass::MultiLane, 4, 300.0f, 0.55f},
+        {EdgeId{6}, NodeId{6}, NodeId{7}, RoadClass::SingleLane, 1, 300.0f, 0.15f},
+        {EdgeId{7}, NodeId{7}, NodeId{0}, RoadClass::TwoLane, 2, 350.0f, 0.3f},
+        {EdgeId{8}, NodeId{1}, NodeId{6}, RoadClass::SingleLane, 1, 350.0f, 0.85f}
+    }};
+    static const std::array<NodePick, 8> node_picks{{
+        {NodeId{0}, {-450.0f, -250.0f}}, {NodeId{1}, {-150.0f, -250.0f}},
+        {NodeId{2}, {150.0f, -250.0f}}, {NodeId{3}, {450.0f, -250.0f}},
+        {NodeId{4}, {450.0f, 100.0f}}, {NodeId{5}, {150.0f, 100.0f}},
+        {NodeId{6}, {-150.0f, 100.0f}}, {NodeId{7}, {-450.0f, 100.0f}}
+    }};
+    static const std::array<EdgePick, 9> edge_picks{{
+        {EdgeId{0}, {-450.0f, -250.0f}, {-150.0f, -250.0f}},
+        {EdgeId{1}, {-150.0f, -250.0f}, {150.0f, -250.0f}},
+        {EdgeId{2}, {150.0f, -250.0f}, {450.0f, -250.0f}},
+        {EdgeId{3}, {450.0f, -250.0f}, {450.0f, 100.0f}},
+        {EdgeId{4}, {450.0f, 100.0f}, {150.0f, 100.0f}},
+        {EdgeId{5}, {150.0f, 100.0f}, {-150.0f, 100.0f}},
+        {EdgeId{6}, {-150.0f, 100.0f}, {-450.0f, 100.0f}},
+        {EdgeId{7}, {-450.0f, 100.0f}, {-450.0f, -250.0f}},
+        {EdgeId{8}, {-150.0f, -250.0f}, {-150.0f, 100.0f}}
+    }};
+    static const std::array<core::EdgeId, 4> rival_edges{{
+        core::EdgeId{1}, core::EdgeId{2}, core::EdgeId{3}, core::EdgeId{4}
+    }};
+    static const std::array<gfx::RenderRoute, 1> routes{{
+        {core::CompanyId{1}, std::span<const core::EdgeId>{rival_edges}}
+    }};
+    static const std::array<gfx::RenderVehicle, 4> vehicles{{
+        {VehicleId{0}, CompanyId{1}, EdgeId{1}, 115.0f},
+        {VehicleId{1}, CompanyId{1}, EdgeId{2}, 185.0f},
+        {VehicleId{2}, CompanyId{2}, EdgeId{5}, 95.0f},
+        {VehicleId{3}, CompanyId{1}, EdgeId{3}, 210.0f}
+    }};
+    static const gfx::RenderScene scene{
+        std::span<const gfx::RenderNode>{nodes}, std::span<const gfx::RenderEdge>{edges},
+        std::span<const gfx::RenderRoute>{routes}, std::span<const gfx::RenderVehicle>{vehicles}
+    };
+    static const DemoSceneView view{
+        scene, std::span<const NodePick>{node_picks}, std::span<const EdgePick>{edge_picks}
+    };
+    return view;
 }
 }
 
@@ -67,6 +141,7 @@ bool App::initialize()
         shutdown();
         return false;
     }
+    vector_renderer_.set_renderer(renderer_);
     vsync_enabled_ = SDL_SetRenderVSync(renderer_, 1);
     if (!vsync_enabled_)
     {
@@ -181,6 +256,7 @@ void App::shutdown() noexcept
         ImGui::DestroyContext();
         imgui_context_created_ = false;
     }
+    vector_renderer_.set_renderer(nullptr);
     if (renderer_ != nullptr)
     {
         SDL_DestroyRenderer(renderer_);
@@ -247,8 +323,33 @@ void App::process_events()
             pan_drag_active_ = false;
             break;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            if ((event.button.button == SDL_BUTTON_MIDDLE || event.button.button == SDL_BUTTON_RIGHT) &&
-                !ImGui::GetIO().WantCaptureMouse)
+            if (!ImGui::GetIO().WantCaptureMouse && event.button.button == SDL_BUTTON_LEFT)
+            {
+                int window_width = 0;
+                int window_height = 0;
+                int output_width = 0;
+                int output_height = 0;
+                if (SDL_GetWindowSize(window_, &window_width, &window_height) &&
+                    SDL_GetRenderOutputSize(renderer_, &output_width, &output_height) &&
+                    window_width > 0 && window_height > 0)
+                {
+                    const glm::vec2 cursor{
+                        event.button.x * static_cast<float>(output_width) / static_cast<float>(window_width),
+                        event.button.y * static_cast<float>(output_height) / static_cast<float>(window_height)
+                    };
+                    update_hover(cursor);
+                    if (render_options_.hovered_node)
+                    {
+                        render_options_.selected_node = render_options_.hovered_node;
+                    }
+                    else
+                    {
+                        render_options_.selected_node.reset();
+                    }
+                }
+            }
+            else if ((event.button.button == SDL_BUTTON_MIDDLE || event.button.button == SDL_BUTTON_RIGHT) &&
+                     !ImGui::GetIO().WantCaptureMouse)
             {
                 pan_drag_active_ = true;
             }
@@ -260,7 +361,7 @@ void App::process_events()
             }
             break;
         case SDL_EVENT_MOUSE_MOTION:
-            if (pan_drag_active_ && !ImGui::GetIO().WantCaptureMouse)
+            if (!ImGui::GetIO().WantCaptureMouse)
             {
                 int window_width = 0;
                 int window_height = 0;
@@ -272,7 +373,11 @@ void App::process_events()
                 {
                     const float scale_x = static_cast<float>(output_width) / static_cast<float>(window_width);
                     const float scale_y = static_cast<float>(output_height) / static_cast<float>(window_height);
-                    camera_.pan_by_screen_delta({event.motion.xrel * scale_x, event.motion.yrel * scale_y});
+                    update_hover({event.motion.x * scale_x, event.motion.y * scale_y});
+                    if (pan_drag_active_)
+                    {
+                        camera_.pan_by_screen_delta({event.motion.xrel * scale_x, event.motion.yrel * scale_y});
+                    }
                 }
             }
             break;
@@ -329,6 +434,15 @@ void App::process_events()
             break;
         }
     }
+}
+
+void App::update_hover(glm::vec2 cursor_screen_px)
+{
+    const DemoSceneView& view = demo_scene();
+    render_options_.hovered_node = find_nearest_node(view.node_picks, camera_, cursor_screen_px, 11.0f);
+    render_options_.hovered_edge = render_options_.hovered_node
+        ? std::nullopt
+        : find_nearest_edge(view.edge_picks, camera_, cursor_screen_px, 8.0f);
 }
 
 void App::update_keyboard_pan(double frame_dt)
@@ -389,6 +503,12 @@ bool App::render_frame()
         std::cerr << "SDL frame clear failed: " << SDL_GetError() << '\n';
         return false;
     }
+    std::string render_error;
+    if (!vector_renderer_.render(demo_scene().render_scene, camera_, render_options_, render_error))
+    {
+        std::cerr << "Vector rendering failed: " << render_error << '\n';
+        return false;
+    }
 
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -408,7 +528,7 @@ void App::draw_controls()
 {
     ImGui::SetNextWindowSize({520.0f, 420.0f}, ImGuiCond_FirstUseEver);
     ImGui::Begin("Transport Graph");
-    ImGui::TextUnformatted("Application framework ready");
+    ImGui::TextUnformatted("Schematic city preview");
 
     float requested_ui_scale = ui_scale_;
     if (ImGui::SliderFloat("UI scale", &requested_ui_scale, 0.8f, 2.0f, "%.2fx"))
@@ -417,6 +537,16 @@ void App::draw_controls()
         style.ScaleAllSizes(requested_ui_scale / ui_scale_);
         style.FontScaleMain = requested_ui_scale;
         ui_scale_ = requested_ui_scale;
+    }
+
+    ImGui::Checkbox("Traffic heatmap", &render_options_.show_heatmap);
+    int rival_selection = render_options_.selected_rival_id ? 1 : 0;
+    constexpr const char* rival_labels[] = {"No rival focus", "Focus company 1"};
+    if (ImGui::Combo("Rival focus", &rival_selection, rival_labels, 2))
+    {
+        render_options_.selected_rival_id = rival_selection == 0
+            ? std::nullopt
+            : std::optional<CompanyId>{CompanyId{1}};
     }
 
     bool paused = sim_loop_.is_paused();
@@ -444,7 +574,15 @@ void App::draw_controls()
 
     ImGui::Text("Fixed ticks: %llu", static_cast<unsigned long long>(sim_loop_.total_step_count()));
     ImGui::Text("Camera zoom: %.2f", camera_.zoom());
-    ImGui::TextUnformatted("Pan: middle/right drag or WASD / arrow keys");
+    if (render_options_.selected_node)
+    {
+        ImGui::Text("Selected node: %u", render_options_.selected_node->value());
+    }
+    else if (render_options_.hovered_edge)
+    {
+        ImGui::Text("Hovered edge: %u", render_options_.hovered_edge->value());
+    }
+    ImGui::TextUnformatted("Select nodes with left click; pan with middle/right drag or WASD");
     ImGui::TextUnformatted("Zoom: mouse wheel | Pause: Space | Speed: 0, 1, 2, 4");
     ImGui::End();
 }
