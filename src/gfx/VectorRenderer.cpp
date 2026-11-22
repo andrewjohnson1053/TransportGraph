@@ -19,7 +19,7 @@ namespace
 constexpr float pi = 3.14159265358979323846f;
 constexpr int circle_segments = 20;
 constexpr float node_radius_px = 6.0f;
-constexpr float badge_pixel_px = 1.35f;
+constexpr float badge_pixel_px = 2.7f;
 
 bool finite(glm::vec2 value) noexcept
 {
@@ -283,10 +283,10 @@ void append_backlog_badge(GeometryBatch& batch, glm::vec2 screen, std::uint32_t 
     }
     const float glyph_width = 3.0f * badge_pixel_px;
     const float gap = badge_pixel_px;
-    const float height = 13.0f;
+    const float height = 26.0f;
     const float width = std::max(height, static_cast<float>(text.size()) * glyph_width +
-        static_cast<float>(text.size() - 1) * gap + 6.0f);
-    const glm::vec2 center = screen + glm::vec2{10.0f, -11.0f};
+        static_cast<float>(text.size() - 1) * gap + 12.0f);
+    const glm::vec2 center = screen + glm::vec2{20.0f, -22.0f};
     const glm::vec2 top_left = center + glm::vec2{-width * 0.5f, -height * 0.5f};
     const float radius = height * 0.5f;
     batch.quad({top_left.x + radius, top_left.y}, {top_left.x + width - radius, top_left.y},
@@ -297,7 +297,7 @@ void append_backlog_badge(GeometryBatch& batch, glm::vec2 screen, std::uint32_t 
     for (std::size_t index = 0; index < text.size(); ++index)
     {
         const Glyph glyph = glyph_for(text[index]);
-        const float x_base = top_left.x + 3.0f + static_cast<float>(index) * (glyph_width + gap);
+        const float x_base = top_left.x + 6.0f + static_cast<float>(index) * (glyph_width + gap);
         for (std::size_t row = 0; row < glyph.size(); ++row)
         {
             for (std::size_t column = 0; column < 3; ++column)
@@ -307,7 +307,7 @@ void append_backlog_badge(GeometryBatch& batch, glm::vec2 screen, std::uint32_t 
                     continue;
                 }
                 const float x = x_base + static_cast<float>(column) * badge_pixel_px;
-                const float y = top_left.y + 2.0f + static_cast<float>(row) * badge_pixel_px;
+                const float y = top_left.y + 4.0f + static_cast<float>(row) * badge_pixel_px;
                 batch.quad({x, y}, {x + badge_pixel_px, y},
                            {x + badge_pixel_px, y + badge_pixel_px}, {x, y + badge_pixel_px},
                            {255, 255, 255, 255});
@@ -506,7 +506,7 @@ bool VectorRenderer::render(const RenderScene& scene, const core::Camera2D& came
         return false;
     }
 
-    const float zoom_scale = std::clamp(camera.zoom(), 0.75f, 2.0f);
+    const float zoom_scale = std::clamp(camera.zoom(), 0.75f, 2.0f) * 2.0f;
     GeometryBatch batch;
     for (const RenderEdge& edge : scene.edges)
     {

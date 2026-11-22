@@ -66,6 +66,7 @@ These assumptions should remain easy to change:
 - One fixed simulation tick is `1.0 / 60.0` seconds unless an explicit compatibility need requires otherwise.
 - Frame delta is clamped to `0.25` seconds.
 - The simulation supports pause and `0x`, `1x`, `2x`, and `4x` speeds.
+- On high-resolution displays, the game starts in a resizable 1920x1080 window with UI and map visuals scaled to 2x by default.
 - A deterministic seed is persisted in simulation state and used for all random decisions.
 
 Unspecified formulas should not be hard-coded into separate implementations. Prefer named constants or a small configuration structure in `Graph`, simulation, economy, or application code.

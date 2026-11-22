@@ -19,13 +19,13 @@ namespace core
 {
 namespace
 {
-constexpr int initial_window_width = 1280;
-constexpr int initial_window_height = 720;
+constexpr int initial_window_width = 1920;
+constexpr int initial_window_height = 1080;
 constexpr std::uint64_t target_frame_duration_ns = 1'000'000'000ULL / 60ULL;
 constexpr double nanoseconds_per_second = 1'000'000'000.0;
 constexpr double keyboard_pan_speed = 600.0;
 constexpr float zoom_per_wheel_unit = 1.1f;
-constexpr float default_ui_scale = 1.25f;
+constexpr float default_ui_scale = 2.0f;
 
 bool key_is_down(const bool* keyboard_state, int key_count, SDL_Scancode key) noexcept
 {
@@ -126,7 +126,7 @@ bool App::initialize()
         "Transport Graph",
         initial_window_width,
         initial_window_height,
-        SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_MAXIMIZED);
+        SDL_WINDOW_RESIZABLE);
     if (window_ == nullptr)
     {
         std::cerr << "SDL window creation failed: " << SDL_GetError() << '\n';
@@ -439,10 +439,10 @@ void App::process_events()
 void App::update_hover(glm::vec2 cursor_screen_px)
 {
     const DemoSceneView& view = demo_scene();
-    render_options_.hovered_node = find_nearest_node(view.node_picks, camera_, cursor_screen_px, 11.0f);
+    render_options_.hovered_node = find_nearest_node(view.node_picks, camera_, cursor_screen_px, 22.0f);
     render_options_.hovered_edge = render_options_.hovered_node
         ? std::nullopt
-        : find_nearest_edge(view.edge_picks, camera_, cursor_screen_px, 8.0f);
+        : find_nearest_edge(view.edge_picks, camera_, cursor_screen_px, 16.0f);
 }
 
 void App::update_keyboard_pan(double frame_dt)
@@ -526,7 +526,7 @@ bool App::render_frame()
 
 void App::draw_controls()
 {
-    ImGui::SetNextWindowSize({520.0f, 420.0f}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize({1040.0f, 840.0f}, ImGuiCond_FirstUseEver);
     ImGui::Begin("Transport Graph");
     ImGui::TextUnformatted("Schematic city preview");
 

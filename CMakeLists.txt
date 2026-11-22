@@ -67,7 +67,14 @@ add_custom_command(TARGET TransportGraph POST_BUILD
 
 # Verify post-build asset copying
 enable_testing()
-add_executable(GraphSmokeTest tests/graph_smoke_test.cpp)
+add_executable(GraphSmokeTest
+    tests/graph_smoke_test.cpp
+    src/sim/Graph.cpp
+)
+target_include_directories(GraphSmokeTest PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(GraphSmokeTest PRIVATE glm::glm)
 target_compile_options(GraphSmokeTest PRIVATE ${PROJECT_WARNING_OPTIONS})
 add_test(NAME GraphSmokeTest COMMAND GraphSmokeTest)
 set_tests_properties(GraphSmokeTest PROPERTIES
