@@ -56,6 +56,7 @@ private:
     bool runtime_error_ = false;
     bool pan_drag_active_ = false;
     float ui_scale_ = 1.0f;
+    int resolution_index_ = 0;
     SimulationTick simulation_tick_ = nullptr;
     void* simulation_context_ = nullptr;
     std::vector<gfx::RenderNode> render_nodes_;

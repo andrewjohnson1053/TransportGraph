@@ -163,6 +163,7 @@ bool App::initialize()
     }
 
     const bool dev_display = development_display_enabled();
+    resolution_index_ = dev_display ? 1 : 0;
     const int requested_width = dev_display ? development_window_width : initial_window_width;
     const int requested_height = dev_display ? development_window_height : initial_window_height;
     const int max_width = std::max(1, usable_bounds.w * display_safety_margin_percent / 100);
@@ -594,37 +595,20 @@ void App::draw_controls()
     ImGui::Begin("Transport Graph");
     ImGui::Text("Sample city: %zu nodes, %zu roads", render_nodes_.size(), render_edges_.size());
 
-    int window_width = 0;
-    int window_height = 0;
-    SDL_GetWindowSize(window_, &window_width, &window_height);
-    int resolution_index = 0;
-    for (int index = 0; index < static_cast<int>(std::size(resolution_presets)); ++index)
-    {
-        if (window_width == resolution_presets[index].width &&
-            window_height == resolution_presets[index].height)
-        {
-            resolution_index = index;
-            break;
-        }
-    }
-    if (ImGui::Combo("Resolution", &resolution_index, resolution_labels,
+    if (ImGui::Combo("Resolution", &resolution_index_, resolution_labels,
                      static_cast<int>(std::size(resolution_labels))))
     {
-        const ResolutionPreset& preset = resolution_presets[resolution_index];
-        SDL_Rect usable_bounds{};
-        int width = preset.width;
-        int height = preset.height;
-        const SDL_DisplayID display = SDL_GetPrimaryDisplay();
-        if (display != 0 && SDL_GetDisplayUsableBounds(display, &usable_bounds) &&
-            usable_bounds.w > 0 && usable_bounds.h > 0)
-        {
-            width = std::min(width, std::max(1, usable_bounds.w * display_safety_margin_percent / 100));
-            height = std::min(height, std::max(1, usable_bounds.h * display_safety_margin_percent / 100));
-        }
-        if (!SDL_SetWindowSize(window_, width, height))
+        const ResolutionPreset& preset = resolution_presets[resolution_index_];
+        if (!SDL_SetWindowSize(window_, preset.width, preset.height))
         {
             std::cerr << "Unable to set window resolution: " << SDL_GetError() << '\n';
         }
+    }
+    int window_width = 0;
+    int window_height = 0;
+    if (SDL_GetWindowSize(window_, &window_width, &window_height))
+    {
+        ImGui::Text("Window size: %d x %d", window_width, window_height);
     }
 
     float requested_scale = ui_scale_;
