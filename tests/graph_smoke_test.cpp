@@ -3,10 +3,17 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 int main()
 {
+    static_assert(std::is_same_v<decltype(std::declval<sim::Graph&>().find_node(core::NodeId{})),
+                                 const sim::Node*>);
+    static_assert(std::is_same_v<decltype(std::declval<sim::Graph&>().find_edge(core::EdgeId{})),
+                                 const sim::Edge*>);
+
     const std::filesystem::path sampleMap{"assets/maps/sample_city.json"};
     if (!std::filesystem::is_regular_file(sampleMap))
     {

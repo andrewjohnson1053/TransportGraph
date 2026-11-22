@@ -25,7 +25,7 @@
 * [x] **Subtask 1.3.3:** Implement Traffic Saturation Heatmap mode (`bool show_heatmap`) interpolating edge colors from green (`0.0`) through yellow (`0.7`) to red (`>= 1.0+` congestion).
 * [x] **Subtask 1.3.4:** Render nodes as crisp schematic markers (`Intersection`, `Stop`, `Terminal`, `DepotAnchor`, `RegionalGateway`) with hover/selection rings and clean numeric queue badges (no per-node pie charts).
 * [x] **Subtask 1.3.5:** Render vehicles along edges from their `(current_edge_id, edge_dist_m)` coordinates and add Competitor Focus Mode (`selected_rival_id`) highlighting a chosen rival's lines and vehicles without changing base road-class colors.
-* [x] **Subtask 1.3.6:** Default to a resizable 1920x1080 game window and 2x-scaled UI, map visuals, markers, and backlog labels for high-resolution displays.
+* [x] **Subtask 1.3.6:** Support an opt-in 1920x1080/2x development display mode while sizing the normal game window to the usable display area and keeping standard visuals at 1x.
 
 ---
 

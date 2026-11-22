@@ -14,18 +14,31 @@
 #include <iostream>
 #include <span>
 #include <string>
+#include <string_view>
 
 namespace core
 {
 namespace
 {
-constexpr int initial_window_width = 1920;
-constexpr int initial_window_height = 1080;
+constexpr int initial_window_width = 1280;
+constexpr int initial_window_height = 720;
+constexpr int development_window_width = 1920;
+constexpr int development_window_height = 1080;
+constexpr int display_safety_margin_percent = 90;
 constexpr std::uint64_t target_frame_duration_ns = 1'000'000'000ULL / 60ULL;
 constexpr double nanoseconds_per_second = 1'000'000'000.0;
 constexpr double keyboard_pan_speed = 600.0;
 constexpr float zoom_per_wheel_unit = 1.1f;
-constexpr float default_ui_scale = 2.0f;
+constexpr float default_ui_scale = 1.0f;
+constexpr float development_ui_scale = 2.0f;
+constexpr float development_visual_scale = 2.0f;
+constexpr std::string_view development_display_environment = "TRANSPORT_GRAPH_DEV_DISPLAY";
+
+bool development_display_enabled() noexcept
+{
+    const char* value = SDL_getenv(development_display_environment.data());
+    return value != nullptr && std::string_view{value} == "1";
+}
 
 bool key_is_down(const bool* keyboard_state, int key_count, SDL_Scancode key) noexcept
 {
@@ -122,14 +135,41 @@ bool App::initialize()
     }
     sdl_initialized_ = true;
 
-    window_ = SDL_CreateWindow(
-        "Transport Graph",
-        initial_window_width,
-        initial_window_height,
-        SDL_WINDOW_RESIZABLE);
+    const SDL_DisplayID display = SDL_GetPrimaryDisplay();
+    if (display == 0)
+    {
+        std::cerr << "Unable to determine the primary display: " << SDL_GetError() << '\n';
+        shutdown();
+        return false;
+    }
+    SDL_Rect usable_bounds{};
+    if (!SDL_GetDisplayUsableBounds(display, &usable_bounds) ||
+        usable_bounds.w <= 0 || usable_bounds.h <= 0)
+    {
+        std::cerr << "Unable to determine usable primary display bounds: " << SDL_GetError() << '\n';
+        shutdown();
+        return false;
+    }
+
+    const bool dev_display = development_display_enabled();
+    const int requested_width = dev_display ? development_window_width : initial_window_width;
+    const int requested_height = dev_display ? development_window_height : initial_window_height;
+    const int max_width = std::max(1, usable_bounds.w * display_safety_margin_percent / 100);
+    const int max_height = std::max(1, usable_bounds.h * display_safety_margin_percent / 100);
+    const int window_width = std::min(requested_width, max_width);
+    const int window_height = std::min(requested_height, max_height);
+
+    window_ = SDL_CreateWindow("Transport Graph", window_width, window_height, SDL_WINDOW_RESIZABLE);
     if (window_ == nullptr)
     {
         std::cerr << "SDL window creation failed: " << SDL_GetError() << '\n';
+        shutdown();
+        return false;
+    }
+    if (!SDL_SetWindowPosition(window_, SDL_WINDOWPOS_CENTERED_DISPLAY(display),
+                               SDL_WINDOWPOS_CENTERED_DISPLAY(display)))
+    {
+        std::cerr << "SDL window positioning failed: " << SDL_GetError() << '\n';
         shutdown();
         return false;
     }
@@ -164,9 +204,10 @@ bool App::initialize()
     imgui_context_created_ = true;
     ImGui::StyleColorsDark();
     ImGuiStyle& style = ImGui::GetStyle();
-    style.ScaleAllSizes(default_ui_scale);
-    style.FontScaleMain = default_ui_scale;
-    ui_scale_ = default_ui_scale;
+    ui_scale_ = dev_display ? development_ui_scale : default_ui_scale;
+    style.ScaleAllSizes(ui_scale_);
+    style.FontScaleMain = ui_scale_;
+    render_options_.visual_scale = dev_display ? development_visual_scale : 1.0f;
 
     if (!ImGui_ImplSDL3_InitForSDLRenderer(window_, renderer_))
     {
@@ -439,10 +480,12 @@ void App::process_events()
 void App::update_hover(glm::vec2 cursor_screen_px)
 {
     const DemoSceneView& view = demo_scene();
-    render_options_.hovered_node = find_nearest_node(view.node_picks, camera_, cursor_screen_px, 22.0f);
+    render_options_.hovered_node = find_nearest_node(
+        view.node_picks, camera_, cursor_screen_px, 11.0f * render_options_.visual_scale);
     render_options_.hovered_edge = render_options_.hovered_node
         ? std::nullopt
-        : find_nearest_edge(view.edge_picks, camera_, cursor_screen_px, 16.0f);
+        : find_nearest_edge(view.edge_picks, camera_, cursor_screen_px,
+                            8.0f * render_options_.visual_scale);
 }
 
 void App::update_keyboard_pan(double frame_dt)
@@ -526,7 +569,7 @@ bool App::render_frame()
 
 void App::draw_controls()
 {
-    ImGui::SetNextWindowSize({1040.0f, 840.0f}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize({520.0f * ui_scale_, 420.0f * ui_scale_}, ImGuiCond_FirstUseEver);
     ImGui::Begin("Transport Graph");
     ImGui::TextUnformatted("Schematic city preview");
 

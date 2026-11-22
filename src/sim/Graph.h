@@ -52,9 +52,7 @@ public:
     const std::vector<std::vector<core::EdgeId>>& out_edges() const noexcept { return out_edges_; }
     const std::vector<std::vector<core::EdgeId>>& in_edges() const noexcept { return in_edges_; }
 
-    Node* find_node(core::NodeId id) noexcept;
     const Node* find_node(core::NodeId id) const noexcept;
-    Edge* find_edge(core::EdgeId id) noexcept;
     const Edge* find_edge(core::EdgeId id) const noexcept;
 
 private:

@@ -125,19 +125,9 @@ bool Graph::rebuild_adjacency(std::string* error)
     return true;
 }
 
-Node* Graph::find_node(core::NodeId id) noexcept
-{
-    return id.is_valid() && id.value() < nodes_.size() ? &nodes_[id.value()] : nullptr;
-}
-
 const Node* Graph::find_node(core::NodeId id) const noexcept
 {
     return id.is_valid() && id.value() < nodes_.size() ? &nodes_[id.value()] : nullptr;
-}
-
-Edge* Graph::find_edge(core::EdgeId id) noexcept
-{
-    return id.is_valid() && id.value() < edges_.size() ? &edges_[id.value()] : nullptr;
 }
 
 const Edge* Graph::find_edge(core::EdgeId id) const noexcept
