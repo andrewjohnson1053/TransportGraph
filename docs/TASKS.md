@@ -25,13 +25,14 @@
 * [x] **Subtask 1.3.3:** Implement Traffic Saturation Heatmap mode (`bool show_heatmap`) interpolating edge colors from green (`0.0`) through yellow (`0.7`) to red (`>= 1.0+` congestion).
 * [x] **Subtask 1.3.4:** Render nodes as crisp schematic markers (`Intersection`, `Stop`, `Terminal`, `DepotAnchor`, `RegionalGateway`) with hover/selection rings and clean numeric queue badges (no per-node pie charts).
 * [x] **Subtask 1.3.5:** Render vehicles along edges from their `(current_edge_id, edge_dist_m)` coordinates and add Competitor Focus Mode (`selected_rival_id`) highlighting a chosen rival's lines and vehicles without changing base road-class colors.
+* [x] **Subtask 1.3.6:** Support an opt-in 1920x1080/2x development display mode while sizing the normal game window to the usable display area and keeping standard visuals at 1x.
 
 ---
 
 ## Milestone 2: Road Graph, Pathfinding & Traffic Simulation
 
 ### Task 2.1: Contiguous Graph Storage & JSON Map Loader
-* [ ] **Subtask 2.1.1:** Implement `Graph` (`src/sim/Graph.h/.cpp`) storing flat `std::vector<Node>` and `std::vector<Edge>` pools and precomputed outgoing/incoming edge index lists (`out_edges`, `in_edges`) per node.
+* [x] **Subtask 2.1.1:** Implement `Graph` (`src/sim/Graph.h/.cpp`) storing flat `std::vector<Node>` and `std::vector<Edge>` pools and precomputed outgoing/incoming edge index lists (`out_edges`, `in_edges`) per node.
 * [ ] **Subtask 2.1.2:** Write `load_from_json(const std::filesystem::path& path)` in `Graph` parsing nodes and edges, validating node indices, lengths, and lane/speed fields, and returning clear error messages on invalid maps.
 * [ ] **Subtask 2.1.3:** Author a rich `assets/maps/sample_city.json` containing single-lane streets, 2-lane arterials, multi-lane avenues, highway segments, stops, terminals, and depot anchors.
 * [ ] **Subtask 2.1.4:** Add unit/smoke test coverage in `tests/graph_smoke_test.cpp` verifying graph loading, adjacency integrity, and invalid-map rejection.

@@ -65,6 +65,7 @@ struct RenderScene
 struct RenderOptions
 {
     bool show_heatmap = false;
+    float visual_scale = 1.0f;
     std::optional<core::NodeId> hovered_node;
     std::optional<core::NodeId> selected_node;
     std::optional<core::EdgeId> hovered_edge;

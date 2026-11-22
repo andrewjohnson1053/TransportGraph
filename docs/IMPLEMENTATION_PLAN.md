@@ -66,6 +66,8 @@ These assumptions should remain easy to change:
 - One fixed simulation tick is `1.0 / 60.0` seconds unless an explicit compatibility need requires otherwise.
 - Frame delta is clamped to `0.25` seconds.
 - The simulation supports pause and `0x`, `1x`, `2x`, and `4x` speeds.
+- Normal gameplay starts in a resizable window sized to fit the primary display's usable area, with UI and map visuals at 1x.
+- Developers can opt into a 1920x1080/2x display test using `TRANSPORT_GRAPH_DEV_DISPLAY=1`; the requested window size is still capped to the available display bounds.
 - A deterministic seed is persisted in simulation state and used for all random decisions.
 
 Unspecified formulas should not be hard-coded into separate implementations. Prefer named constants or a small configuration structure in `Graph`, simulation, economy, or application code.
