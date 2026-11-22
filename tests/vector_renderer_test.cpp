@@ -1,9 +1,12 @@
 #include "gfx/VectorRenderer.h"
 
+#include <SDL3/SDL.h>
+
 #include <array>
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <string>
 
 namespace
 {
@@ -79,6 +82,40 @@ int main()
 	const gfx::Color company_b = gfx::company_color(core::CompanyId{3});
 	passed = check(company_a.r != company_b.r || company_a.g != company_b.g || company_a.b != company_b.b,
 				   "different companies receive distinct highlight colors") && passed;
+
+	SDL_Surface* surface = SDL_CreateSurface(640, 480, SDL_PIXELFORMAT_RGBA32);
+	passed = check(surface != nullptr, "software-renderer test surface is created") && passed;
+	if (surface != nullptr)
+	{
+		SDL_Renderer* sdl_renderer = SDL_CreateSoftwareRenderer(surface);
+		passed = check(sdl_renderer != nullptr, "software renderer is created") && passed;
+		if (sdl_renderer != nullptr)
+		{
+			gfx::VectorRenderer renderer;
+			renderer.set_renderer(sdl_renderer);
+			core::Camera2D camera;
+			std::string error;
+			const std::array<gfx::RenderNode, 3> duplicate_nodes{{nodes[0], nodes[0], nodes[1]}};
+			const gfx::RenderScene duplicate_node_scene{duplicate_nodes, edges, {}, {}};
+			passed = check(!renderer.render(duplicate_node_scene, camera, {}, error) &&
+						   error.find("duplicate node IDs") != std::string::npos,
+					   "duplicate node IDs are rejected") && passed;
+
+			const std::array<gfx::RenderEdge, 2> duplicate_edges{{edges[0], edges[0]}};
+			const gfx::RenderScene duplicate_edge_scene{nodes, duplicate_edges, {}, {}};
+			passed = check(!renderer.render(duplicate_edge_scene, camera, {}, error) &&
+						   error.find("duplicate edge IDs") != std::string::npos,
+					   "duplicate edge IDs are rejected") && passed;
+
+			const std::array<gfx::RenderVehicle, 2> duplicate_vehicles{{halfway, halfway}};
+			const gfx::RenderScene duplicate_vehicle_scene{nodes, edges, {}, duplicate_vehicles};
+			passed = check(!renderer.render(duplicate_vehicle_scene, camera, {}, error) &&
+						   error.find("duplicate vehicle IDs") != std::string::npos,
+					   "duplicate vehicle IDs are rejected") && passed;
+			SDL_DestroyRenderer(sdl_renderer);
+		}
+		SDL_DestroySurface(surface);
+	}
 
 	if (passed)
 	{

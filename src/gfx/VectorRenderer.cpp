@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <limits>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace gfx
@@ -129,19 +130,82 @@ private:
     std::vector<int> indices_;
 };
 
-const RenderNode* find_node(const RenderScene& scene, core::NodeId id) noexcept
+template <typename IdType>
+struct IdHash
 {
-    const auto it = std::find_if(scene.nodes.begin(), scene.nodes.end(),
-                                 [id](const RenderNode& node) { return node.id == id; });
-    return it == scene.nodes.end() ? nullptr : &*it;
-}
+    std::size_t operator()(IdType id) const noexcept
+    {
+        return static_cast<std::size_t>(id.value());
+    }
+};
 
-const RenderEdge* find_edge(const RenderScene& scene, core::EdgeId id) noexcept
+class SceneLookup
 {
-    const auto it = std::find_if(scene.edges.begin(), scene.edges.end(),
-                                 [id](const RenderEdge& edge) { return edge.id == id; });
-    return it == scene.edges.end() ? nullptr : &*it;
-}
+public:
+    bool build(const RenderScene& scene, std::string& error)
+    {
+        nodes_.reserve(scene.nodes.size());
+        edges_.reserve(scene.edges.size());
+        vehicles_.reserve(scene.vehicles.size());
+        for (const RenderNode& node : scene.nodes)
+        {
+            if (!node.id.is_valid())
+            {
+                error = "Render scene contains a node with an invalid ID.";
+                return false;
+            }
+            if (!nodes_.emplace(node.id, &node).second)
+            {
+                error = "Render scene contains duplicate node IDs.";
+                return false;
+            }
+        }
+        for (const RenderEdge& edge : scene.edges)
+        {
+            if (!edge.id.is_valid())
+            {
+                error = "Render scene contains an edge with an invalid ID.";
+                return false;
+            }
+            if (!edges_.emplace(edge.id, &edge).second)
+            {
+                error = "Render scene contains duplicate edge IDs.";
+                return false;
+            }
+        }
+        for (const RenderVehicle& vehicle : scene.vehicles)
+        {
+            if (!vehicle.id.is_valid())
+            {
+                error = "Render scene contains a vehicle with an invalid ID.";
+                return false;
+            }
+            if (!vehicles_.emplace(vehicle.id, &vehicle).second)
+            {
+                error = "Render scene contains duplicate vehicle IDs.";
+                return false;
+            }
+        }
+        return true;
+    }
+
+    const RenderNode* find_node(core::NodeId id) const noexcept
+    {
+        const auto it = nodes_.find(id);
+        return it == nodes_.end() ? nullptr : it->second;
+    }
+
+    const RenderEdge* find_edge(core::EdgeId id) const noexcept
+    {
+        const auto it = edges_.find(id);
+        return it == edges_.end() ? nullptr : it->second;
+    }
+
+private:
+    std::unordered_map<core::NodeId, const RenderNode*, IdHash<core::NodeId>> nodes_;
+    std::unordered_map<core::EdgeId, const RenderEdge*, IdHash<core::EdgeId>> edges_;
+    std::unordered_map<core::VehicleId, const RenderVehicle*, IdHash<core::VehicleId>> vehicles_;
+};
 
 Color node_color(core::NodeType type) noexcept
 {
@@ -252,11 +316,11 @@ void append_backlog_badge(GeometryBatch& batch, glm::vec2 screen, std::uint32_t 
     }
 }
 
-bool edge_screen_points(const RenderScene& scene, const RenderEdge& edge, const core::Camera2D& camera,
+bool edge_screen_points(const SceneLookup& lookup, const RenderEdge& edge, const core::Camera2D& camera,
                         glm::vec2& start, glm::vec2& end) noexcept
 {
-    const RenderNode* from = find_node(scene, edge.from_node);
-    const RenderNode* to = find_node(scene, edge.to_node);
+    const RenderNode* from = lookup.find_node(edge.from_node);
+    const RenderNode* to = lookup.find_node(edge.to_node);
     if (from == nullptr || to == nullptr)
     {
         return false;
@@ -266,23 +330,22 @@ bool edge_screen_points(const RenderScene& scene, const RenderEdge& edge, const 
     return finite(start) && finite(end);
 }
 
-bool valid_scene(const RenderScene& scene, std::string& error)
+bool valid_scene(const RenderScene& scene, const SceneLookup& lookup, std::string& error)
 {
     for (const RenderNode& node : scene.nodes)
     {
-        if (!node.id.is_valid() || !finite(node.position_world))
+        if (!finite(node.position_world))
         {
-            error = "Render scene contains a node with an invalid ID or non-finite position.";
+            error = "Render scene contains a node with a non-finite position.";
             return false;
         }
     }
     for (const RenderEdge& edge : scene.edges)
     {
-        if (!edge.id.is_valid() || !edge.from_node.is_valid() || !edge.to_node.is_valid() ||
-            edge.base_lanes == 0 || road_class_width_px(edge.road_class) <= 0.0f ||
-            !std::isfinite(edge.length_m) || edge.length_m <= 0.0f ||
-            !std::isfinite(edge.congestion_ratio) || edge.congestion_ratio < 0.0f ||
-            find_node(scene, edge.from_node) == nullptr || find_node(scene, edge.to_node) == nullptr)
+        if (!edge.from_node.is_valid() || !edge.to_node.is_valid() || edge.base_lanes == 0 ||
+            road_class_width_px(edge.road_class) <= 0.0f || !std::isfinite(edge.length_m) ||
+            edge.length_m <= 0.0f || !std::isfinite(edge.congestion_ratio) || edge.congestion_ratio < 0.0f ||
+            lookup.find_node(edge.from_node) == nullptr || lookup.find_node(edge.to_node) == nullptr)
         {
             error = "Render scene contains an edge with invalid endpoints or numeric properties.";
             return false;
@@ -297,7 +360,7 @@ bool valid_scene(const RenderScene& scene, std::string& error)
         }
         for (const core::EdgeId edge_id : route.edge_ids)
         {
-            if (!edge_id.is_valid() || find_edge(scene, edge_id) == nullptr)
+            if (!edge_id.is_valid() || lookup.find_edge(edge_id) == nullptr)
             {
                 error = "Render scene contains a route that references an invalid edge.";
                 return false;
@@ -306,10 +369,10 @@ bool valid_scene(const RenderScene& scene, std::string& error)
     }
     for (const RenderVehicle& vehicle : scene.vehicles)
     {
-        if (!vehicle.id.is_valid() || !vehicle.company_id.is_valid() ||
-            !std::isfinite(vehicle.edge_dist_m) || find_edge(scene, vehicle.current_edge_id) == nullptr)
+        if (!vehicle.company_id.is_valid() || !std::isfinite(vehicle.edge_dist_m) ||
+            lookup.find_edge(vehicle.current_edge_id) == nullptr)
         {
-            error = "Render scene contains a vehicle with an invalid ID, edge, or position.";
+            error = "Render scene contains a vehicle with an invalid edge or position.";
             return false;
         }
     }
@@ -373,16 +436,18 @@ Color company_color(core::CompanyId company_id) noexcept
     return company_id.is_valid() ? palette[company_id.value() % palette.size()] : Color{255, 0, 255, 255};
 }
 
-std::optional<glm::vec2> vehicle_world_position(const RenderScene& scene, const RenderVehicle& vehicle) noexcept
+namespace
 {
-    const RenderEdge* edge = find_edge(scene, vehicle.current_edge_id);
+std::optional<glm::vec2> vehicle_world_position(const SceneLookup& lookup, const RenderVehicle& vehicle) noexcept
+{
+    const RenderEdge* edge = lookup.find_edge(vehicle.current_edge_id);
     if (edge == nullptr || !std::isfinite(vehicle.edge_dist_m) || !std::isfinite(edge->length_m) ||
         edge->length_m <= 0.0f)
     {
         return std::nullopt;
     }
-    const RenderNode* from = find_node(scene, edge->from_node);
-    const RenderNode* to = find_node(scene, edge->to_node);
+    const RenderNode* from = lookup.find_node(edge->from_node);
+    const RenderNode* to = lookup.find_node(edge->to_node);
     if (from == nullptr || to == nullptr || !finite(from->position_world) || !finite(to->position_world))
     {
         return std::nullopt;
@@ -390,6 +455,33 @@ std::optional<glm::vec2> vehicle_world_position(const RenderScene& scene, const 
     const float distance = std::clamp(vehicle.edge_dist_m, 0.0f, edge->length_m);
     const float progress = distance / edge->length_m;
     const glm::vec2 position = from->position_world + (to->position_world - from->position_world) * progress;
+    return finite(position) ? std::optional<glm::vec2>{position} : std::nullopt;
+}
+}
+
+std::optional<glm::vec2> vehicle_world_position(const RenderScene& scene, const RenderVehicle& vehicle) noexcept
+{
+    const auto edge_it = std::find_if(scene.edges.begin(), scene.edges.end(),
+                                      [&vehicle](const RenderEdge& edge) {
+                                          return edge.id == vehicle.current_edge_id;
+                                      });
+    if (edge_it == scene.edges.end() || !std::isfinite(vehicle.edge_dist_m) ||
+        !std::isfinite(edge_it->length_m) || edge_it->length_m <= 0.0f)
+    {
+        return std::nullopt;
+    }
+    const auto from_it = std::find_if(scene.nodes.begin(), scene.nodes.end(),
+                                      [&edge_it](const RenderNode& node) { return node.id == edge_it->from_node; });
+    const auto to_it = std::find_if(scene.nodes.begin(), scene.nodes.end(),
+                                    [&edge_it](const RenderNode& node) { return node.id == edge_it->to_node; });
+    if (from_it == scene.nodes.end() || to_it == scene.nodes.end() ||
+        !finite(from_it->position_world) || !finite(to_it->position_world))
+    {
+        return std::nullopt;
+    }
+    const float distance = std::clamp(vehicle.edge_dist_m, 0.0f, edge_it->length_m);
+    const float progress = distance / edge_it->length_m;
+    const glm::vec2 position = from_it->position_world + (to_it->position_world - from_it->position_world) * progress;
     return finite(position) ? std::optional<glm::vec2>{position} : std::nullopt;
 }
 
@@ -403,9 +495,14 @@ bool VectorRenderer::render(const RenderScene& scene, const core::Camera2D& came
         return false;
     }
     if (!std::isfinite(camera.zoom()) || camera.zoom() <= 0.0f || !finite(camera.center_world()) ||
-        !finite(camera.viewport_size_px()) || !valid_scene(scene, error))
+        !finite(camera.viewport_size_px()))
     {
-        if (error.empty()) error = "Camera contains invalid values for rendering.";
+        error = "Camera contains invalid values for rendering.";
+        return false;
+    }
+    SceneLookup lookup;
+    if (!lookup.build(scene, error) || !valid_scene(scene, lookup, error))
+    {
         return false;
     }
 
@@ -415,7 +512,7 @@ bool VectorRenderer::render(const RenderScene& scene, const core::Camera2D& came
     {
         glm::vec2 start;
         glm::vec2 end;
-        if (!edge_screen_points(scene, edge, camera, start, end))
+        if (!edge_screen_points(lookup, edge, camera, start, end))
         {
             error = "Unable to transform edge endpoints to screen coordinates.";
             return false;
@@ -440,10 +537,10 @@ bool VectorRenderer::render(const RenderScene& scene, const core::Camera2D& came
             }
             for (const core::EdgeId edge_id : route.edge_ids)
             {
-                const RenderEdge* edge = find_edge(scene, edge_id);
+                const RenderEdge* edge = lookup.find_edge(edge_id);
                 glm::vec2 start;
                 glm::vec2 end;
-                if (edge != nullptr && edge_screen_points(scene, *edge, camera, start, end))
+                if (edge != nullptr && edge_screen_points(lookup, *edge, camera, start, end))
                 {
                     batch.line(start, end, 2.0f * zoom_scale, route_color);
                 }
@@ -477,10 +574,10 @@ bool VectorRenderer::render(const RenderScene& scene, const core::Camera2D& came
     batch.clear();
     for (const RenderVehicle& vehicle : scene.vehicles)
     {
-        const RenderEdge* edge = find_edge(scene, vehicle.current_edge_id);
-        const RenderNode* from = edge == nullptr ? nullptr : find_node(scene, edge->from_node);
-        const RenderNode* to = edge == nullptr ? nullptr : find_node(scene, edge->to_node);
-        const auto world_position = vehicle_world_position(scene, vehicle);
+        const RenderEdge* edge = lookup.find_edge(vehicle.current_edge_id);
+        const RenderNode* from = edge == nullptr ? nullptr : lookup.find_node(edge->from_node);
+        const RenderNode* to = edge == nullptr ? nullptr : lookup.find_node(edge->to_node);
+        const auto world_position = vehicle_world_position(lookup, vehicle);
         if (edge == nullptr || from == nullptr || to == nullptr || !world_position)
         {
             error = "Unable to locate a vehicle on its current edge.";
