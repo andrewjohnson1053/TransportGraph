@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -241,6 +242,66 @@ int main()
     if (std::find(reached.begin(), reached.end(), false) != reached.end())
     {
         std::cerr << "Sample city map is not fully reachable from its starting node.\n";
+        return 1;
+    }
+
+    sim::Edge weighted_edge;
+    weighted_edge.length_m = 100.0F;
+    weighted_edge.speed_limit_mps = 20.0F;
+    const float base_travel_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    if (!std::isfinite(base_travel_time) || std::abs(base_travel_time - 5.0F) > 1.0e-5F ||
+        std::abs(sim::compute_edge_travel_time(weighted_edge, 10.0F) - 10.0F) > 1.0e-5F)
+    {
+        std::cerr << "Edge travel time does not respect edge and vehicle speed limits.\n";
+        return 1;
+    }
+    weighted_edge.congestion_ratio = 0.7F;
+    const float threshold_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    weighted_edge.congestion_ratio = 1.0F;
+    const float congested_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    weighted_edge.congestion_ratio = 100.0F;
+    const float over_capacity_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    if (std::abs(threshold_time - base_travel_time) > 1.0e-5F ||
+        !(congested_time > threshold_time) || !(over_capacity_time > congested_time) ||
+        over_capacity_time > base_travel_time / 0.15F + 1.0e-4F)
+    {
+        std::cerr << "Congestion travel-time slowdown is not monotonic or exceeds its crawl floor.\n";
+        return 1;
+    }
+    weighted_edge.congestion_ratio = 0.0F;
+    weighted_edge.has_bus_lane = true;
+    const float bus_lane_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    weighted_edge.has_bus_lane = false;
+    weighted_edge.has_signal_priority = true;
+    const float signal_priority_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    weighted_edge.has_bus_lane = true;
+    const float combined_priority_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    if (std::abs(bus_lane_time - base_travel_time * 0.9F) > 1.0e-5F ||
+        std::abs(signal_priority_time - base_travel_time * 0.9F) > 1.0e-5F ||
+        std::abs(combined_priority_time - base_travel_time * 0.81F) > 1.0e-5F)
+    {
+        std::cerr << "Bus-lane and signal-priority travel-time modifiers are incorrect.\n";
+        return 1;
+    }
+    weighted_edge.has_bus_lane = false;
+    weighted_edge.has_signal_priority = false;
+    weighted_edge.roadwork_speed_mult = 0.5F;
+    const float inactive_roadwork_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    weighted_edge.roadwork_active = true;
+    const float active_roadwork_time = sim::compute_edge_travel_time(weighted_edge, 30.0F);
+    if (std::abs(inactive_roadwork_time - base_travel_time) > 1.0e-5F ||
+        std::abs(active_roadwork_time - base_travel_time * 2.0F) > 1.0e-5F)
+    {
+        std::cerr << "Roadwork travel-time multiplier does not respect roadwork state.\n";
+        return 1;
+    }
+    weighted_edge.roadwork_speed_mult = std::numeric_limits<float>::quiet_NaN();
+    if (!std::isinf(sim::compute_edge_travel_time(weighted_edge, 30.0F)) ||
+        !std::isinf(sim::compute_edge_travel_time(weighted_edge, 0.0F)) ||
+        !std::isinf(sim::compute_edge_travel_time(weighted_edge,
+                                                   std::numeric_limits<float>::infinity())))
+    {
+        std::cerr << "Invalid travel-time inputs did not return the unreachable sentinel.\n";
         return 1;
     }
 

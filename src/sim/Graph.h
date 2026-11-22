@@ -41,6 +41,8 @@ struct Edge
     float roadwork_speed_mult = 1.0F;
 };
 
+float compute_edge_travel_time(const Edge& edge, float vehicle_max_speed_mps) noexcept;
+
 class Graph
 {
 public:

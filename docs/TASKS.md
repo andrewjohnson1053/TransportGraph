@@ -38,7 +38,7 @@
 * [x] **Subtask 2.1.4:** Add unit/smoke test coverage in `tests/graph_smoke_test.cpp` verifying graph loading, adjacency integrity, and invalid-map rejection.
 
 ### Task 2.2: Dynamic Edge Weights & Pathfinding
-* [ ] **Subtask 2.2.1:** Implement `compute_edge_travel_time(const Edge& e, float vehicle_max_speed_mps)` factoring in `length_m`, `speed_limit_mps`, `congestion_ratio`, `has_bus_lane`, `has_signal_priority`, and `roadwork_speed_mult`.
+* [x] **Subtask 2.2.1:** Implement `compute_edge_travel_time(const Edge& e, float vehicle_max_speed_mps)` factoring in `length_m`, `speed_limit_mps`, `congestion_ratio`, `has_bus_lane`, `has_signal_priority`, and `roadwork_speed_mult`.
 * [ ] **Subtask 2.2.2:** Implement `find_shortest_path(NodeId start, NodeId goal, float vehicle_max_speed_mps)` using `A*` (with Euclidean heuristic scaled by max speed) returning ordered `std::vector<NodeId>` and `std::vector<EdgeId>`.
 * [ ] **Subtask 2.2.3:** Add path cache keys/versioning so cached routes invalidate when edge congestion crosses thresholds or city roadworks toggle.
 

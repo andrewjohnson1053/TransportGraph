@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <limits>
@@ -14,6 +15,12 @@ namespace sim
 {
 namespace
 {
+constexpr float congestion_slowdown_threshold = 0.7F;
+constexpr float congestion_slowdown_curve = 2.0F;
+constexpr float minimum_congested_speed_multiplier = 0.15F;
+constexpr double bus_lane_travel_time_multiplier = 0.9;
+constexpr double signal_priority_travel_time_multiplier = 0.9;
+
 void set_error(std::string* error, std::string message)
 {
     if (error != nullptr)
@@ -152,6 +159,41 @@ core::RoadClass parse_road_class(std::string_view value, std::string_view contex
     if (value == "Highway") return core::RoadClass::Highway;
     throw std::runtime_error(std::string{context} + " has invalid road class '" + std::string{value} + "'.");
 }
+}
+
+float compute_edge_travel_time(const Edge& edge, float vehicle_max_speed_mps) noexcept
+{
+    if (!valid_edge(edge) || !std::isfinite(vehicle_max_speed_mps) || vehicle_max_speed_mps <= 0.0F)
+    {
+        return std::numeric_limits<float>::infinity();
+    }
+
+    const double base_speed = std::min(static_cast<double>(edge.speed_limit_mps),
+                                       static_cast<double>(vehicle_max_speed_mps));
+    const double excess_congestion = std::max(
+        0.0, static_cast<double>(edge.congestion_ratio) - congestion_slowdown_threshold);
+    const double congestion_speed_multiplier = std::max(
+        static_cast<double>(minimum_congested_speed_multiplier),
+        1.0 / (1.0 + congestion_slowdown_curve * excess_congestion * excess_congestion));
+    const double roadwork_multiplier = edge.roadwork_active ? edge.roadwork_speed_mult : 1.0;
+
+    double travel_time = static_cast<double>(edge.length_m) /
+        (base_speed * congestion_speed_multiplier * roadwork_multiplier);
+    if (edge.has_bus_lane)
+    {
+        travel_time *= bus_lane_travel_time_multiplier;
+    }
+    if (edge.has_signal_priority)
+    {
+        travel_time *= signal_priority_travel_time_multiplier;
+    }
+
+    if (!std::isfinite(travel_time) || travel_time <= 0.0 ||
+        travel_time > static_cast<double>(std::numeric_limits<float>::max()))
+    {
+        return std::numeric_limits<float>::infinity();
+    }
+    return static_cast<float>(travel_time);
 }
 
 bool Graph::add_node(Node node, std::string* error)

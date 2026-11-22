@@ -56,6 +56,11 @@ Each edge requires `id`, `from_node`, `to_node`, `bidirectional`, `road_class` (
   * `double cash`, `double net_worth`, `float reputation` (`0..100`), `uint8_t tier` (`1..12`), `float regional_market_share` (`0..1`), `float anti_monopoly_tax_rate`.
 
 ## 3. Simulation Formulas & Rules
+* **Edge Travel Time:**
+  * Base speed is `min(vehicle_max_speed_mps, edge.speed_limit_mps)`.
+  * Congestion does not slow an edge through saturation `0.7`; above that, use `max(0.15, 1 / (1 + 2 * (s - 0.7)^2))` as a speed multiplier.
+  * When roadwork is active, multiply speed by `roadwork_speed_mult`. A bus lane or signal priority independently multiplies travel time by `0.9`.
+  * Invalid edge metrics or non-positive/non-finite vehicle speed return positive infinity, indicating an unusable edge weight.
 * **Congestion Saturation & Speed:**
   * Define edge capacity `cap` from `base_lanes` and `RoadClass` (plus `has_bus_lane` / `roadwork_speed_mult`).
   * Saturation `s = static_cast<float>(active_vehicles) / std::max(1.0f, cap)`.
