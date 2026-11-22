@@ -74,7 +74,7 @@ add_executable(GraphSmokeTest
 target_include_directories(GraphSmokeTest PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(GraphSmokeTest PRIVATE glm::glm)
+target_link_libraries(GraphSmokeTest PRIVATE glm::glm nlohmann_json::nlohmann_json)
 target_compile_options(GraphSmokeTest PRIVATE ${PROJECT_WARNING_OPTIONS})
 add_test(NAME GraphSmokeTest COMMAND GraphSmokeTest)
 set_tests_properties(GraphSmokeTest PROPERTIES

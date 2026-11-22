@@ -26,9 +26,14 @@ The project is structured in C++20 with strict separation between simulation, gr
   * `uint32_t id`, `uint32_t from_node`, `uint32_t to_node`, `bool bidirectional`.
   * `RoadClass` (`SingleLane`, `TwoLane`, `MultiLane`, `Highway`), `uint8_t base_lanes`, `float length_m`, `float speed_limit_mps`.
   * Dynamic state: `uint32_t active_vehicles`, `float congestion_ratio`, `float effective_speed_mps`, `bool has_pullout_bays`, `bool has_bus_lane`, `bool has_signal_priority`, `bool roadwork_active`, `float roadwork_speed_mult`.
-  * *Invariant:* `from_node < nodes.size()`, `to_node < nodes.size()`, `length_m > 0.0f`, `base_lanes >= 1`.
+  * *Invariant:* `from_node < nodes.size()`, `to_node < nodes.size()`, `length_m > 0.0f`, `speed_limit_mps > 0.0f`, `base_lanes >= 1`.
 
-### 2.2 Fleet, Depots & Workforce
+### 2.2 JSON Map Format
+Map files contain non-empty `nodes` and `edges` arrays. Node and edge `id` values are unsigned integers matching their array indices. Each node requires `id`, finite numeric `x` and `y`, and a `type` string (`Intersection`, `Stop`, `Terminal`, `DepotAnchor`, or `RegionalGateway`). Optional node fields are `waiting_passengers`, `waiting_cargo_tons`, and `intersection_throughput_per_sec`; numeric values must be finite and non-negative.
+
+Each edge requires `id`, `from_node`, `to_node`, `bidirectional`, `road_class` (`SingleLane`, `TwoLane`, `MultiLane`, or `Highway`), `base_lanes`, positive `length_m`, and positive `speed_limit_mps`. Optional fields are `active_vehicles`, `congestion_ratio`, `effective_speed_mps`, `has_pullout_bays`, `has_bus_lane`, `has_signal_priority`, `roadwork_active`, and positive `roadwork_speed_mult`. Endpoints must reference existing node IDs; dynamic numeric values must be finite and non-negative. Omitted optional fields use the defaults in the graph data structures.
+
+### 2.3 Fleet, Depots & Workforce
 * **`Vehicle`:**
   * `uint32_t id`, `uint32_t company_id`, `uint32_t route_id`, `uint32_t home_depot_id`.
   * `VehicleClass` (`MiniVan`, `CityBus`, `DoubleDecker`, `ArticulatedBus`, `LightTruck`, `MediumTruck`, `SemiTruck`).
@@ -39,7 +44,7 @@ The project is structured in C++20 with strict separation between simulation, gr
 * **`Worker`:**
   * `uint32_t id`, `uint32_t company_id`, `uint32_t depot_id`, `WorkerRole` (`Driver`, `Mechanic`, `Dispatcher`), `float hourly_wage`, `float shift_hours_worked`, `float fatigue_0_to_100`, `bool on_duty`.
 
-### 2.3 Routes, Contracts & Companies
+### 2.4 Routes, Contracts & Companies
 * **`Route`:**
   * `uint32_t id`, `uint32_t company_id`, `RouteKind` (`PrivatePassenger`, `ContractPassenger`, `Cargo`), `std::vector<uint32_t> node_sequence`, `std::vector<uint32_t> edge_sequence`.
   * `float ticket_fare`, `float target_headway_sec`, `float time_since_last_dispatch_sec`, `bool active`.

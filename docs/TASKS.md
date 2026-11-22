@@ -33,7 +33,7 @@
 
 ### Task 2.1: Contiguous Graph Storage & JSON Map Loader
 * [x] **Subtask 2.1.1:** Implement `Graph` (`src/sim/Graph.h/.cpp`) storing flat `std::vector<Node>` and `std::vector<Edge>` pools and precomputed outgoing/incoming edge index lists (`out_edges`, `in_edges`) per node.
-* [ ] **Subtask 2.1.2:** Write `load_from_json(const std::filesystem::path& path)` in `Graph` parsing nodes and edges, validating node indices, lengths, and lane/speed fields, and returning clear error messages on invalid maps.
+* [x] **Subtask 2.1.2:** Write `load_from_json(const std::filesystem::path& path)` in `Graph` parsing nodes and edges, validating node indices, lengths, and lane/speed fields, and returning clear error messages on invalid maps.
 * [ ] **Subtask 2.1.3:** Author a rich `assets/maps/sample_city.json` containing single-lane streets, 2-lane arterials, multi-lane avenues, highway segments, stops, terminals, and depot anchors.
 * [ ] **Subtask 2.1.4:** Add unit/smoke test coverage in `tests/graph_smoke_test.cpp` verifying graph loading, adjacency integrity, and invalid-map rejection.
 
