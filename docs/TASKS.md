@@ -7,9 +7,9 @@
 ## Milestone 1: Project Bootstrap, Fixed Loop & Vector Renderer
 
 ### Task 1.1: Build System, Dependencies & Directory Wiring
-* [ ] **Subtask 1.1.1:** Verify `CMakeLists.txt`, `CMakePresets.json`, and `vcpkg.json` configure cleanly in Visual Studio Community (`windows-x64-debug` and `windows-x64-release`) with `SDL3`, `glm`, `nlohmann_json`, and `imgui`.
-* [ ] **Subtask 1.1.2:** Enforce C++20 and strict warning flags (`/W4 /permissive-` on MSVC; `-Wall -Wextra -Wpedantic` on GCC/Clang) across all targets.
-* [ ] **Subtask 1.1.3:** Configure post-build asset copying so `assets/` is always available next to the built executable.
+* [x] **Subtask 1.1.1:** Verify `CMakeLists.txt`, `CMakePresets.json`, and `vcpkg.json` configure cleanly in Visual Studio Community (`windows-x64-debug` and `windows-x64-release`) with `SDL3`, `glm`, `nlohmann_json`, and `imgui`.
+* [x] **Subtask 1.1.2:** Enforce C++20 and strict warning flags (`/W4 /permissive-` on MSVC; `-Wall -Wextra -Wpedantic` on GCC/Clang) across all targets.
+* [x] **Subtask 1.1.3:** Configure post-build asset copying so `assets/` is always available next to the built executable.
 * [x] **Subtask 1.1.4:** Create `src/core/Types.h` with core ID aliases (`NodeId`, `EdgeId`, `VehicleId`, `RouteId`, `DepotId`, `WorkerId`, `ContractId`, `CompanyId`), `InvalidId` sentinel (`UINT32_MAX`), and fundamental enums (`RoadClass`, `NodeType`, `VehicleClass`, `RouteKind`, `AIArchetype`).
 
 ### Task 1.2: Fixed-Timestep Simulation Loop & 2D Camera
