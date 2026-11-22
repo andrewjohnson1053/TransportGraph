@@ -2,6 +2,9 @@
 
 #include <nlohmann/json.hpp>
 
+#include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -13,6 +16,81 @@
 
 namespace
 {
+class TemporaryMapDirectory
+{
+public:
+    TemporaryMapDirectory() = default;
+    TemporaryMapDirectory(const TemporaryMapDirectory&) = delete;
+    TemporaryMapDirectory& operator=(const TemporaryMapDirectory&) = delete;
+
+    ~TemporaryMapDirectory()
+    {
+        if (owns_directory_)
+        {
+            std::error_code ignored;
+            std::filesystem::remove_all(path_, ignored);
+        }
+    }
+
+    bool create(std::string& error)
+    {
+        std::error_code filesystem_error;
+        const std::filesystem::path temp_root = std::filesystem::temp_directory_path(filesystem_error);
+        if (filesystem_error)
+        {
+            error = "Failed to locate the system temporary directory: " + filesystem_error.message();
+            return false;
+        }
+
+        static std::atomic<std::uint64_t> sequence{0};
+        const auto timestamp = std::chrono::steady_clock::now().time_since_epoch().count();
+        for (int attempt = 0; attempt < 128; ++attempt)
+        {
+            const std::string name = "transport_graph_map_loader_test_" + std::to_string(timestamp) + "_" +
+                std::to_string(sequence.fetch_add(1, std::memory_order_relaxed));
+            const std::filesystem::path candidate = temp_root / name;
+            if (std::filesystem::create_directory(candidate, filesystem_error))
+            {
+                path_ = candidate;
+                owns_directory_ = true;
+                return true;
+            }
+            if (filesystem_error && filesystem_error != std::errc::file_exists)
+            {
+                error = "Failed to create a unique temporary map directory: " + filesystem_error.message();
+                return false;
+            }
+            filesystem_error.clear();
+        }
+
+        error = "Unable to create a unique temporary map directory after 128 attempts.";
+        return false;
+    }
+
+    const std::filesystem::path& path() const noexcept { return path_; }
+
+    bool cleanup(std::string& error)
+    {
+        if (!owns_directory_)
+        {
+            return true;
+        }
+        std::error_code filesystem_error;
+        std::filesystem::remove_all(path_, filesystem_error);
+        if (filesystem_error)
+        {
+            error = "Failed to clean up temporary map directory: " + filesystem_error.message();
+            return false;
+        }
+        owns_directory_ = false;
+        return true;
+    }
+
+private:
+    std::filesystem::path path_;
+    bool owns_directory_ = false;
+};
+
 bool write_map_fixture(const std::filesystem::path& path, const nlohmann::json& document)
 {
     std::ofstream output{path};
@@ -83,10 +161,15 @@ int main()
         return 1;
     }
 
-    const std::filesystem::path fixture_path =
-        std::filesystem::temp_directory_path() / "transport_graph_map_loader_test.json";
-    sim::Graph loaded_graph;
+    TemporaryMapDirectory temp_directory;
     std::string error;
+    if (!temp_directory.create(error))
+    {
+        std::cerr << error << '\n';
+        return 1;
+    }
+    const std::filesystem::path fixture_path = temp_directory.path() / "map.json";
+    sim::Graph loaded_graph;
     const nlohmann::json valid_document = valid_map_fixture();
     if (!write_map_fixture(fixture_path, valid_document) ||
         !loaded_graph.load_from_json(fixture_path, &error))
@@ -179,17 +262,14 @@ int main()
         std::cerr << "Malformed JSON was not rejected without changing the existing graph: " << error << '\n';
         return 1;
     }
-    if (loaded_graph.load_from_json(fixture_path.parent_path() / "transport_graph_missing_map.json", &error) ||
-        error.empty())
+    if (loaded_graph.load_from_json(temp_directory.path() / "missing.json", &error) || error.empty())
     {
         std::cerr << "Missing map file was not reported.\n";
         return 1;
     }
-    std::error_code cleanup_error;
-    std::filesystem::remove(fixture_path, cleanup_error);
-    if (cleanup_error)
+    if (!temp_directory.cleanup(error))
     {
-        std::cerr << "Failed to remove temporary map fixture: " << cleanup_error.message() << '\n';
+        std::cerr << error << '\n';
         return 1;
     }
 
