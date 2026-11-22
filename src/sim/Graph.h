@@ -5,6 +5,7 @@
 #include <glm/vec2.hpp>
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,7 @@ public:
     bool add_node(Node node, std::string* error = nullptr);
     bool add_edge(Edge edge, std::string* error = nullptr);
     bool rebuild_adjacency(std::string* error = nullptr);
+    bool load_from_json(const std::filesystem::path& path, std::string* error = nullptr);
 
     const std::vector<Node>& nodes() const noexcept { return nodes_; }
     const std::vector<Edge>& edges() const noexcept { return edges_; }

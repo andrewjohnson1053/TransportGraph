@@ -1,18 +1,24 @@
 #include "sim/Graph.h"
 
+#include <nlohmann/json.hpp>
+
 #include <cmath>
+#include <fstream>
 #include <limits>
+#include <stdexcept>
+#include <string_view>
+#include <unordered_set>
 #include <utility>
 
 namespace sim
 {
 namespace
 {
-void set_error(std::string* error, const char* message)
+void set_error(std::string* error, std::string message)
 {
     if (error != nullptr)
     {
-        *error = message;
+        *error = std::move(message);
     }
 }
 
@@ -35,6 +41,116 @@ bool valid_edge(const Edge& edge) noexcept
            finite_non_negative(edge.congestion_ratio) &&
            finite_non_negative(edge.effective_speed_mps) &&
            std::isfinite(edge.roadwork_speed_mult) && edge.roadwork_speed_mult > 0.0F;
+}
+
+const nlohmann::json& required_field(const nlohmann::json& object, std::string_view key,
+                                     std::string_view context)
+{
+    if (!object.is_object())
+    {
+        throw std::runtime_error(std::string{context} + " must be an object.");
+    }
+    const auto field = object.find(key);
+    if (field == object.end())
+    {
+        throw std::runtime_error(std::string{context} + " is missing required field '" +
+                                 std::string{key} + "'.");
+    }
+    return *field;
+}
+
+std::uint32_t read_uint32(const nlohmann::json& value, std::string_view field_name)
+{
+    if (value.is_number_unsigned())
+    {
+        const std::uint64_t parsed = value.get<std::uint64_t>();
+        if (parsed <= std::numeric_limits<std::uint32_t>::max())
+        {
+            return static_cast<std::uint32_t>(parsed);
+        }
+    }
+    else if (value.is_number_integer())
+    {
+        const std::int64_t parsed = value.get<std::int64_t>();
+        if (parsed >= 0 && static_cast<std::uint64_t>(parsed) <= std::numeric_limits<std::uint32_t>::max())
+        {
+            return static_cast<std::uint32_t>(parsed);
+        }
+    }
+    throw std::runtime_error("Field '" + std::string{field_name} + "' must be an unsigned 32-bit integer.");
+}
+
+float read_float(const nlohmann::json& value, std::string_view field_name)
+{
+    if (!value.is_number())
+    {
+        throw std::runtime_error("Field '" + std::string{field_name} + "' must be numeric.");
+    }
+    const double parsed = value.get<double>();
+    if (!std::isfinite(parsed) || parsed < -std::numeric_limits<float>::max() ||
+        parsed > std::numeric_limits<float>::max())
+    {
+        throw std::runtime_error("Field '" + std::string{field_name} + "' must be finite and representable as a float.");
+    }
+    return static_cast<float>(parsed);
+}
+
+bool read_bool(const nlohmann::json& value, std::string_view field_name)
+{
+    if (!value.is_boolean())
+    {
+        throw std::runtime_error("Field '" + std::string{field_name} + "' must be a boolean.");
+    }
+    return value.get<bool>();
+}
+
+std::string read_string(const nlohmann::json& value, std::string_view field_name)
+{
+    if (!value.is_string())
+    {
+        throw std::runtime_error("Field '" + std::string{field_name} + "' must be a string.");
+    }
+    return value.get<std::string>();
+}
+
+std::uint32_t optional_uint32(const nlohmann::json& object, std::string_view key,
+                              std::uint32_t fallback, std::string_view context)
+{
+    const auto field = object.find(key);
+    return field == object.end() ? fallback : read_uint32(*field, std::string{context} + "." + std::string{key});
+}
+
+float optional_float(const nlohmann::json& object, std::string_view key, float fallback,
+                     std::string_view context)
+{
+    const auto field = object.find(key);
+    return field == object.end() ? fallback : read_float(*field, std::string{context} + "." + std::string{key});
+}
+
+bool optional_bool(const nlohmann::json& object, std::string_view key, bool fallback,
+                   std::string_view context)
+{
+    const auto field = object.find(key);
+    return field == object.end() ? fallback : read_bool(*field, std::string{context} + "." + std::string{key});
+}
+
+core::NodeType parse_node_type(std::string_view value, std::string_view context)
+{
+    if (value == "Intersection") return core::NodeType::Intersection;
+    if (value == "Stop") return core::NodeType::Stop;
+    if (value == "Terminal") return core::NodeType::Terminal;
+    if (value == "DepotAnchor") return core::NodeType::DepotAnchor;
+    if (value == "RegionalGateway") return core::NodeType::RegionalGateway;
+    throw std::runtime_error(std::string{context} + " has invalid node type '" + std::string{value} + "'.");
+}
+
+core::RoadClass parse_road_class(std::string_view value, std::string_view context)
+{
+    if (value == "SingleLane") return core::RoadClass::SingleLane;
+    if (value == "TwoLane") return core::RoadClass::TwoLane;
+    if (value == "MultiLane") return core::RoadClass::MultiLane;
+    if (value == "Highway") return core::RoadClass::Highway;
+    throw std::runtime_error(std::string{context} + " has invalid road class '" + std::string{value} + "'.");
 }
 }
 
@@ -109,6 +225,150 @@ bool Graph::add_edge(Edge edge, std::string* error)
         in_edges_[edge.from_node.value()].push_back(edge.id);
     }
     return true;
+}
+
+bool Graph::load_from_json(const std::filesystem::path& path, std::string* error)
+{
+    if (error != nullptr)
+    {
+        error->clear();
+    }
+
+    std::ifstream input{path};
+    if (!input)
+    {
+        set_error(error, ("Cannot open map file '" + path.string() + "'.").c_str());
+        return false;
+    }
+
+    try
+    {
+        const nlohmann::json document = nlohmann::json::parse(input);
+        if (input.bad())
+        {
+            set_error(error, ("Failed while reading map file '" + path.string() + "'.").c_str());
+            return false;
+        }
+
+        const auto& nodes_json = required_field(document, "nodes", "Map");
+        const auto& edges_json = required_field(document, "edges", "Map");
+        if (!nodes_json.is_array() || nodes_json.empty())
+        {
+            throw std::runtime_error("Map field 'nodes' must be a non-empty array.");
+        }
+        if (!edges_json.is_array() || edges_json.empty())
+        {
+            throw std::runtime_error("Map field 'edges' must be a non-empty array.");
+        }
+        if (nodes_json.size() >= core::InvalidId || edges_json.size() >= core::InvalidId)
+        {
+            throw std::runtime_error("Map exceeds the maximum supported node or edge ID count.");
+        }
+
+        Graph candidate;
+        std::unordered_set<std::uint32_t> node_ids;
+        node_ids.reserve(nodes_json.size());
+        for (std::size_t index = 0; index < nodes_json.size(); ++index)
+        {
+            const auto& node_json = nodes_json[index];
+            const std::string context = "Node at index " + std::to_string(index);
+            Node node;
+            const std::uint32_t node_id = read_uint32(required_field(node_json, "id", context), context + ".id");
+            if (!node_ids.insert(node_id).second)
+            {
+                throw std::runtime_error(context + " has duplicate node ID " + std::to_string(node_id) + ".");
+            }
+            if (node_id != index)
+            {
+                throw std::runtime_error(context + " ID must match its array index.");
+            }
+            node.id = core::NodeId{node_id};
+            node.pos_world.x = read_float(required_field(node_json, "x", context), context + ".x");
+            node.pos_world.y = read_float(required_field(node_json, "y", context), context + ".y");
+            node.type = parse_node_type(
+                read_string(required_field(node_json, "type", context), context + ".type"), context);
+            node.waiting_passengers = optional_uint32(node_json, "waiting_passengers", 0, context);
+            node.waiting_cargo_tons = optional_float(node_json, "waiting_cargo_tons", 0.0F, context);
+            node.intersection_throughput_per_sec = optional_float(
+                node_json, "intersection_throughput_per_sec", 0.0F, context);
+
+            std::string insertion_error;
+            if (!candidate.add_node(node, &insertion_error))
+            {
+                throw std::runtime_error(context + ": " + insertion_error);
+            }
+        }
+
+        std::unordered_set<std::uint32_t> edge_ids;
+        edge_ids.reserve(edges_json.size());
+        for (std::size_t index = 0; index < edges_json.size(); ++index)
+        {
+            const auto& edge_json = edges_json[index];
+            const std::string context = "Edge at index " + std::to_string(index);
+            Edge edge;
+            const std::uint32_t edge_id = read_uint32(required_field(edge_json, "id", context), context + ".id");
+            if (!edge_ids.insert(edge_id).second)
+            {
+                throw std::runtime_error(context + " has duplicate edge ID " + std::to_string(edge_id) + ".");
+            }
+            if (edge_id != index)
+            {
+                throw std::runtime_error(context + " ID must match its array index.");
+            }
+            edge.id = core::EdgeId{edge_id};
+            edge.from_node = core::NodeId{read_uint32(
+                required_field(edge_json, "from_node", context), context + ".from_node")};
+            edge.to_node = core::NodeId{read_uint32(
+                required_field(edge_json, "to_node", context), context + ".to_node")};
+            edge.bidirectional = read_bool(
+                required_field(edge_json, "bidirectional", context), context + ".bidirectional");
+            edge.road_class = parse_road_class(
+                read_string(required_field(edge_json, "road_class", context), context + ".road_class"), context);
+            const std::uint32_t lanes = read_uint32(
+                required_field(edge_json, "base_lanes", context), context + ".base_lanes");
+            if (lanes > std::numeric_limits<std::uint8_t>::max())
+            {
+                throw std::runtime_error(context + " lane count exceeds the supported range.");
+            }
+            edge.base_lanes = static_cast<std::uint8_t>(lanes);
+            edge.length_m = read_float(required_field(edge_json, "length_m", context), context + ".length_m");
+            edge.speed_limit_mps = read_float(
+                required_field(edge_json, "speed_limit_mps", context), context + ".speed_limit_mps");
+            edge.active_vehicles = optional_uint32(edge_json, "active_vehicles", 0, context);
+            edge.congestion_ratio = optional_float(edge_json, "congestion_ratio", 0.0F, context);
+            edge.effective_speed_mps = optional_float(edge_json, "effective_speed_mps", 0.0F, context);
+            edge.has_pullout_bays = optional_bool(edge_json, "has_pullout_bays", false, context);
+            edge.has_bus_lane = optional_bool(edge_json, "has_bus_lane", false, context);
+            edge.has_signal_priority = optional_bool(edge_json, "has_signal_priority", false, context);
+            edge.roadwork_active = optional_bool(edge_json, "roadwork_active", false, context);
+            edge.roadwork_speed_mult = optional_float(edge_json, "roadwork_speed_mult", 1.0F, context);
+
+            std::string insertion_error;
+            if (!candidate.add_edge(edge, &insertion_error))
+            {
+                throw std::runtime_error(context + ": " + insertion_error);
+            }
+        }
+
+        *this = std::move(candidate);
+        return true;
+    }
+    catch (const std::runtime_error& exception)
+    {
+        if (error != nullptr)
+        {
+            *error = "Invalid map file '" + path.string() + "': " + exception.what();
+        }
+        return false;
+    }
+    catch (const nlohmann::json::exception& exception)
+    {
+        if (error != nullptr)
+        {
+            *error = "Invalid JSON in map file '" + path.string() + "': " + exception.what();
+        }
+        return false;
+    }
 }
 
 bool Graph::rebuild_adjacency(std::string* error)

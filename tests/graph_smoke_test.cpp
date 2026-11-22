@@ -1,13 +1,73 @@
 #include "sim/Graph.h"
 
+#include <nlohmann/json.hpp>
+
 #include <filesystem>
-#include <cmath>
+#include <fstream>
 #include <iostream>
 #include <limits>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+namespace
+{
+bool write_map_fixture(const std::filesystem::path& path, const nlohmann::json& document)
+{
+    std::ofstream output{path};
+    if (!output)
+    {
+        return false;
+    }
+    output << document.dump(2);
+    return output.good();
+}
+
+bool rejects_map(sim::Graph& graph, const std::filesystem::path& path,
+                 const nlohmann::json& document, const char* expected_error)
+{
+    if (!write_map_fixture(path, document))
+    {
+        std::cerr << "Failed to write map fixture.\n";
+        return false;
+    }
+
+    const auto node_count = graph.nodes().size();
+    const auto edge_count = graph.edges().size();
+    const auto outgoing = graph.out_edges();
+    const auto incoming = graph.in_edges();
+    std::string error;
+    if (graph.load_from_json(path, &error) || error.find(expected_error) == std::string::npos ||
+        graph.nodes().size() != node_count || graph.edges().size() != edge_count ||
+        graph.out_edges() != outgoing || graph.in_edges() != incoming)
+    {
+        std::cerr << "Invalid map was not rejected cleanly (expected: " << expected_error
+                  << ", got: " << error << ").\n";
+        return false;
+    }
+    return true;
+}
+
+nlohmann::json valid_map_fixture()
+{
+    return {
+        {"nodes", {
+            {{"id", 0}, {"x", 1.5}, {"y", -2.0}, {"type", "Intersection"},
+             {"waiting_passengers", 4}, {"waiting_cargo_tons", 2.5},
+             {"intersection_throughput_per_sec", 12.0}},
+            {{"id", 1}, {"x", 101.5}, {"y", -2.0}, {"type", "Terminal"}}
+        }},
+        {"edges", {
+            {{"id", 0}, {"from_node", 0}, {"to_node", 1}, {"bidirectional", true},
+             {"road_class", "TwoLane"}, {"base_lanes", 2}, {"length_m", 100.0},
+             {"speed_limit_mps", 13.4}, {"active_vehicles", 3}, {"congestion_ratio", 0.4},
+             {"effective_speed_mps", 8.0}, {"has_pullout_bays", true}, {"has_bus_lane", true},
+             {"has_signal_priority", false}, {"roadwork_active", true}, {"roadwork_speed_mult", 0.5}}
+        }}
+    };
+}
+}
 
 int main()
 {
@@ -23,8 +83,117 @@ int main()
         return 1;
     }
 
-    sim::Graph graph;
+    const std::filesystem::path fixture_path =
+        std::filesystem::temp_directory_path() / "transport_graph_map_loader_test.json";
+    sim::Graph loaded_graph;
     std::string error;
+    const nlohmann::json valid_document = valid_map_fixture();
+    if (!write_map_fixture(fixture_path, valid_document) ||
+        !loaded_graph.load_from_json(fixture_path, &error))
+    {
+        std::cerr << "Failed to load valid graph map: " << error << '\n';
+        return 1;
+    }
+    if (loaded_graph.nodes().size() != 2 || loaded_graph.edges().size() != 1 ||
+        loaded_graph.nodes()[0].id != core::NodeId{0} || loaded_graph.nodes()[1].id != core::NodeId{1} ||
+        loaded_graph.edges()[0].id != core::EdgeId{0} ||
+        loaded_graph.nodes()[0].waiting_passengers != 4 ||
+        loaded_graph.nodes()[0].waiting_cargo_tons != 2.5F ||
+        loaded_graph.nodes()[1].type != core::NodeType::Terminal ||
+        loaded_graph.edges()[0].road_class != core::RoadClass::TwoLane ||
+        loaded_graph.edges()[0].active_vehicles != 3 ||
+        !loaded_graph.edges()[0].has_pullout_bays || !loaded_graph.edges()[0].has_bus_lane ||
+        !loaded_graph.edges()[0].roadwork_active ||
+        loaded_graph.out_edges()[0] != std::vector<core::EdgeId>{core::EdgeId{0}} ||
+        loaded_graph.out_edges()[1] != std::vector<core::EdgeId>{core::EdgeId{0}} ||
+        loaded_graph.in_edges()[0] != std::vector<core::EdgeId>{core::EdgeId{0}} ||
+        loaded_graph.in_edges()[1] != std::vector<core::EdgeId>{core::EdgeId{0}})
+    {
+        std::cerr << "Loaded graph fields or bidirectional adjacency do not match the map.\n";
+        return 1;
+    }
+
+    nlohmann::json invalid_document = valid_document;
+    invalid_document.erase("nodes");
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "missing required field 'nodes'")) return 1;
+    invalid_document = valid_document;
+    invalid_document.erase("edges");
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "missing required field 'edges'")) return 1;
+    invalid_document = valid_document;
+    invalid_document["nodes"] = nlohmann::json::array();
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "non-empty array")) return 1;
+    invalid_document = valid_document;
+    invalid_document["edges"] = nlohmann::json::array();
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "non-empty array")) return 1;
+    invalid_document = valid_document;
+    invalid_document["nodes"][1]["id"] = 0;
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "duplicate node ID")) return 1;
+    invalid_document = valid_document;
+    invalid_document["edges"][0]["id"] = 1;
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "ID must match its array index")) return 1;
+    invalid_document = valid_document;
+    invalid_document["edges"][0]["to_node"] = 2;
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "endpoint node ID is out of range")) return 1;
+    invalid_document = valid_document;
+    invalid_document["edges"][0].erase("to_node");
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "missing required field 'to_node'")) return 1;
+    invalid_document = valid_document;
+    invalid_document["edges"][0]["length_m"] = 0.0;
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "length and speed must be finite and positive")) return 1;
+    invalid_document = valid_document;
+    invalid_document["edges"][0]["speed_limit_mps"] = -1.0;
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "length and speed must be finite and positive")) return 1;
+    invalid_document = valid_document;
+    invalid_document["edges"][0]["base_lanes"] = 0;
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "lane count must be positive")) return 1;
+    invalid_document = valid_document;
+    invalid_document["edges"][0]["road_class"] = "Expressway";
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "invalid road class")) return 1;
+    invalid_document = valid_document;
+    invalid_document["nodes"][0]["type"] = "Unknown";
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "invalid node type")) return 1;
+    invalid_document = valid_document;
+    invalid_document["nodes"][0]["x"] = nullptr;
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "must be numeric")) return 1;
+    {
+        std::ofstream non_finite_position{fixture_path};
+        non_finite_position << R"({"nodes":[{"id":0,"x":1e999,"y":0,"type":"Intersection"}],"edges":[{"id":0,"from_node":0,"to_node":0,"bidirectional":false,"road_class":"SingleLane","base_lanes":1,"length_m":1,"speed_limit_mps":1}]})";
+    }
+    if (loaded_graph.load_from_json(fixture_path, &error) || error.empty() ||
+        loaded_graph.nodes().size() != 2 || loaded_graph.edges().size() != 1)
+    {
+        std::cerr << "Non-finite map coordinates were not rejected transactionally.\n";
+        return 1;
+    }
+    invalid_document = valid_document;
+    invalid_document["nodes"][0]["waiting_cargo_tons"] = -1.0;
+    if (!rejects_map(loaded_graph, fixture_path, invalid_document, "cargo/throughput values")) return 1;
+
+    {
+        std::ofstream malformed_json{fixture_path};
+        malformed_json << "{invalid json";
+    }
+    if (loaded_graph.load_from_json(fixture_path, &error) || error.find("Invalid JSON") == std::string::npos ||
+        loaded_graph.nodes().size() != 2 || loaded_graph.edges().size() != 1)
+    {
+        std::cerr << "Malformed JSON was not rejected without changing the existing graph: " << error << '\n';
+        return 1;
+    }
+    if (loaded_graph.load_from_json(fixture_path.parent_path() / "transport_graph_missing_map.json", &error) ||
+        error.empty())
+    {
+        std::cerr << "Missing map file was not reported.\n";
+        return 1;
+    }
+    std::error_code cleanup_error;
+    std::filesystem::remove(fixture_path, cleanup_error);
+    if (cleanup_error)
+    {
+        std::cerr << "Failed to remove temporary map fixture: " << cleanup_error.message() << '\n';
+        return 1;
+    }
+
+    sim::Graph graph;
     sim::Node node0;
     sim::Node node1;
     node1.pos_world = {10.0F, 0.0F};
