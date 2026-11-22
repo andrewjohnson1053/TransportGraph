@@ -1,10 +1,12 @@
 #pragma once
 
 #include "core/Camera2D.h"
+#include "core/HitTesting.h"
 #include "gfx/VectorRenderer.h"
 #include "sim/SimLoop.h"
 
 #include <cstdint>
+#include <vector>
 
 struct SDL_Renderer;
 struct SDL_Window;
@@ -35,6 +37,7 @@ public:
     const sim::SimLoop& sim_loop() const noexcept { return sim_loop_; }
 
 private:
+    bool load_sample_city();
     bool update_viewport_size() noexcept;
     void process_events();
     void update_hover(glm::vec2 cursor_screen_px);
@@ -55,6 +58,12 @@ private:
     float ui_scale_ = 1.0f;
     SimulationTick simulation_tick_ = nullptr;
     void* simulation_context_ = nullptr;
+    std::vector<gfx::RenderNode> render_nodes_;
+    std::vector<gfx::RenderEdge> render_edges_;
+    std::vector<NodePick> node_picks_;
+    std::vector<EdgePick> edge_picks_;
+    glm::vec2 map_bounds_min_{0.0f, 0.0f};
+    glm::vec2 map_bounds_max_{0.0f, 0.0f};
     Camera2D camera_;
     sim::SimLoop sim_loop_;
     gfx::VectorRenderer vector_renderer_;

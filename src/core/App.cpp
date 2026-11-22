@@ -1,6 +1,7 @@
 #include "core/App.h"
 
 #include "core/HitTesting.h"
+#include "sim/Graph.h"
 
 #include <SDL3/SDL.h>
 #include <imgui.h>
@@ -8,11 +9,11 @@
 #include <imgui_impl_sdlrenderer3.h>
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
-#include <span>
+#include <limits>
 #include <string>
 #include <string_view>
 
@@ -46,79 +47,62 @@ bool key_is_down(const bool* keyboard_state, int key_count, SDL_Scancode key) no
     return keyboard_state != nullptr && index >= 0 && index < key_count && keyboard_state[index];
 }
 
-struct DemoSceneView
-{
-    gfx::RenderScene render_scene;
-    std::span<const NodePick> node_picks;
-    std::span<const EdgePick> edge_picks;
-};
-
-const DemoSceneView& demo_scene()
-{
-    static const std::array<gfx::RenderNode, 8> nodes{{
-        {NodeId{0}, {-450.0f, -250.0f}, NodeType::Intersection, 0},
-        {NodeId{1}, {-150.0f, -250.0f}, NodeType::Stop, 18},
-        {NodeId{2}, {150.0f, -250.0f}, NodeType::Intersection, 0},
-        {NodeId{3}, {450.0f, -250.0f}, NodeType::Terminal, 42},
-        {NodeId{4}, {450.0f, 100.0f}, NodeType::DepotAnchor, 0},
-        {NodeId{5}, {150.0f, 100.0f}, NodeType::RegionalGateway, 0},
-        {NodeId{6}, {-150.0f, 100.0f}, NodeType::Stop, 7},
-        {NodeId{7}, {-450.0f, 100.0f}, NodeType::Intersection, 0}
-    }};
-    static const std::array<gfx::RenderEdge, 9> edges{{
-        {EdgeId{0}, NodeId{0}, NodeId{1}, RoadClass::SingleLane, 1, 300.0f, 0.1f},
-        {EdgeId{1}, NodeId{1}, NodeId{2}, RoadClass::TwoLane, 2, 300.0f, 0.45f},
-        {EdgeId{2}, NodeId{2}, NodeId{3}, RoadClass::MultiLane, 4, 300.0f, 0.76f},
-        {EdgeId{3}, NodeId{3}, NodeId{4}, RoadClass::Highway, 6, 350.0f, 1.15f},
-        {EdgeId{4}, NodeId{4}, NodeId{5}, RoadClass::TwoLane, 2, 300.0f, 0.2f},
-        {EdgeId{5}, NodeId{5}, NodeId{6}, RoadClass::MultiLane, 4, 300.0f, 0.55f},
-        {EdgeId{6}, NodeId{6}, NodeId{7}, RoadClass::SingleLane, 1, 300.0f, 0.15f},
-        {EdgeId{7}, NodeId{7}, NodeId{0}, RoadClass::TwoLane, 2, 350.0f, 0.3f},
-        {EdgeId{8}, NodeId{1}, NodeId{6}, RoadClass::SingleLane, 1, 350.0f, 0.85f}
-    }};
-    static const std::array<NodePick, 8> node_picks{{
-        {NodeId{0}, {-450.0f, -250.0f}}, {NodeId{1}, {-150.0f, -250.0f}},
-        {NodeId{2}, {150.0f, -250.0f}}, {NodeId{3}, {450.0f, -250.0f}},
-        {NodeId{4}, {450.0f, 100.0f}}, {NodeId{5}, {150.0f, 100.0f}},
-        {NodeId{6}, {-150.0f, 100.0f}}, {NodeId{7}, {-450.0f, 100.0f}}
-    }};
-    static const std::array<EdgePick, 9> edge_picks{{
-        {EdgeId{0}, {-450.0f, -250.0f}, {-150.0f, -250.0f}},
-        {EdgeId{1}, {-150.0f, -250.0f}, {150.0f, -250.0f}},
-        {EdgeId{2}, {150.0f, -250.0f}, {450.0f, -250.0f}},
-        {EdgeId{3}, {450.0f, -250.0f}, {450.0f, 100.0f}},
-        {EdgeId{4}, {450.0f, 100.0f}, {150.0f, 100.0f}},
-        {EdgeId{5}, {150.0f, 100.0f}, {-150.0f, 100.0f}},
-        {EdgeId{6}, {-150.0f, 100.0f}, {-450.0f, 100.0f}},
-        {EdgeId{7}, {-450.0f, 100.0f}, {-450.0f, -250.0f}},
-        {EdgeId{8}, {-150.0f, -250.0f}, {-150.0f, 100.0f}}
-    }};
-    static const std::array<core::EdgeId, 4> rival_edges{{
-        core::EdgeId{1}, core::EdgeId{2}, core::EdgeId{3}, core::EdgeId{4}
-    }};
-    static const std::array<gfx::RenderRoute, 1> routes{{
-        {core::CompanyId{1}, std::span<const core::EdgeId>{rival_edges}}
-    }};
-    static const std::array<gfx::RenderVehicle, 4> vehicles{{
-        {VehicleId{0}, CompanyId{1}, EdgeId{1}, 115.0f},
-        {VehicleId{1}, CompanyId{1}, EdgeId{2}, 185.0f},
-        {VehicleId{2}, CompanyId{2}, EdgeId{5}, 95.0f},
-        {VehicleId{3}, CompanyId{1}, EdgeId{3}, 210.0f}
-    }};
-    static const gfx::RenderScene scene{
-        std::span<const gfx::RenderNode>{nodes}, std::span<const gfx::RenderEdge>{edges},
-        std::span<const gfx::RenderRoute>{routes}, std::span<const gfx::RenderVehicle>{vehicles}
-    };
-    static const DemoSceneView view{
-        scene, std::span<const NodePick>{node_picks}, std::span<const EdgePick>{edge_picks}
-    };
-    return view;
-}
 }
 
 App::~App()
 {
     shutdown();
+}
+
+bool App::load_sample_city()
+{
+    const char* base_path = SDL_GetBasePath();
+    if (base_path == nullptr)
+    {
+        std::cerr << "Unable to determine executable directory: " << SDL_GetError() << '\n';
+        return false;
+    }
+    const std::filesystem::path map_path =
+        std::filesystem::path{base_path} / "assets" / "maps" / "sample_city.json";
+
+    sim::Graph graph;
+    std::string error;
+    if (!graph.load_from_json(map_path, &error))
+    {
+        std::cerr << "Sample city map loading failed: " << error << '\n';
+        return false;
+    }
+
+    map_bounds_min_ = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+    map_bounds_max_ = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
+    render_nodes_.reserve(graph.nodes().size());
+    node_picks_.reserve(graph.nodes().size());
+    for (const sim::Node& node : graph.nodes())
+    {
+        render_nodes_.push_back({node.id, node.pos_world, node.type, node.waiting_passengers});
+        node_picks_.push_back({node.id, node.pos_world});
+        map_bounds_min_.x = std::min(map_bounds_min_.x, node.pos_world.x);
+        map_bounds_min_.y = std::min(map_bounds_min_.y, node.pos_world.y);
+        map_bounds_max_.x = std::max(map_bounds_max_.x, node.pos_world.x);
+        map_bounds_max_.y = std::max(map_bounds_max_.y, node.pos_world.y);
+    }
+
+    render_edges_.reserve(graph.edges().size());
+    edge_picks_.reserve(graph.edges().size());
+    for (const sim::Edge& edge : graph.edges())
+    {
+        const sim::Node* from = graph.find_node(edge.from_node);
+        const sim::Node* to = graph.find_node(edge.to_node);
+        if (from == nullptr || to == nullptr)
+        {
+            std::cerr << "Sample city edge references a missing endpoint.\n";
+            return false;
+        }
+        render_edges_.push_back({edge.id, edge.from_node, edge.to_node, edge.road_class,
+                                 edge.base_lanes, edge.length_m, edge.congestion_ratio});
+        edge_picks_.push_back({edge.id, from->pos_world, to->pos_world});
+    }
+    return !render_nodes_.empty() && !render_edges_.empty();
 }
 
 bool App::initialize()
@@ -134,6 +118,11 @@ bool App::initialize()
         return false;
     }
     sdl_initialized_ = true;
+    if (!load_sample_city())
+    {
+        shutdown();
+        return false;
+    }
 
     const SDL_DisplayID display = SDL_GetPrimaryDisplay();
     if (display == 0)
@@ -190,6 +179,16 @@ bool App::initialize()
 
     if (!update_viewport_size())
     {
+        shutdown();
+        return false;
+    }
+    const glm::vec2 map_size = map_bounds_max_ - map_bounds_min_;
+    const glm::vec2 viewport = camera_.viewport_size_px();
+    const float fit_zoom = 0.8f * std::min(viewport.x / map_size.x, viewport.y / map_size.y);
+    if (!camera_.set_center_world((map_bounds_min_ + map_bounds_max_) * 0.5f) ||
+        !camera_.set_zoom(fit_zoom))
+    {
+        std::cerr << "Unable to fit the sample city into the initial view.\n";
         shutdown();
         return false;
     }
@@ -479,12 +478,11 @@ void App::process_events()
 
 void App::update_hover(glm::vec2 cursor_screen_px)
 {
-    const DemoSceneView& view = demo_scene();
     render_options_.hovered_node = find_nearest_node(
-        view.node_picks, camera_, cursor_screen_px, 11.0f * render_options_.visual_scale);
+        node_picks_, camera_, cursor_screen_px, 11.0f * render_options_.visual_scale);
     render_options_.hovered_edge = render_options_.hovered_node
         ? std::nullopt
-        : find_nearest_edge(view.edge_picks, camera_, cursor_screen_px,
+        : find_nearest_edge(edge_picks_, camera_, cursor_screen_px,
                             8.0f * render_options_.visual_scale);
 }
 
@@ -546,8 +544,9 @@ bool App::render_frame()
         std::cerr << "SDL frame clear failed: " << SDL_GetError() << '\n';
         return false;
     }
+    const gfx::RenderScene scene{render_nodes_, render_edges_, {}, {}};
     std::string render_error;
-    if (!vector_renderer_.render(demo_scene().render_scene, camera_, render_options_, render_error))
+    if (!vector_renderer_.render(scene, camera_, render_options_, render_error))
     {
         std::cerr << "Vector rendering failed: " << render_error << '\n';
         return false;
@@ -571,7 +570,7 @@ void App::draw_controls()
 {
     ImGui::SetNextWindowSize({520.0f * ui_scale_, 420.0f * ui_scale_}, ImGuiCond_FirstUseEver);
     ImGui::Begin("Transport Graph");
-    ImGui::TextUnformatted("Schematic city preview");
+    ImGui::Text("Sample city: %zu nodes, %zu roads", render_nodes_.size(), render_edges_.size());
 
     float requested_ui_scale = ui_scale_;
     if (ImGui::SliderFloat("UI scale", &requested_ui_scale, 0.8f, 2.0f, "%.2fx"))
@@ -583,14 +582,6 @@ void App::draw_controls()
     }
 
     ImGui::Checkbox("Traffic heatmap", &render_options_.show_heatmap);
-    int rival_selection = render_options_.selected_rival_id ? 1 : 0;
-    constexpr const char* rival_labels[] = {"No rival focus", "Focus company 1"};
-    if (ImGui::Combo("Rival focus", &rival_selection, rival_labels, 2))
-    {
-        render_options_.selected_rival_id = rival_selection == 0
-            ? std::nullopt
-            : std::optional<CompanyId>{CompanyId{1}};
-    }
 
     bool paused = sim_loop_.is_paused();
     if (ImGui::Checkbox("Paused", &paused))
