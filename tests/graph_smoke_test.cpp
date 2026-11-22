@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <queue>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -161,8 +163,88 @@ int main()
         return 1;
     }
 
-    TemporaryMapDirectory temp_directory;
+    sim::Graph sample_graph;
     std::string error;
+    if (!sample_graph.load_from_json(sampleMap, &error))
+    {
+        std::cerr << "Failed to load sample city map: " << error << '\n';
+        return 1;
+    }
+    if (sample_graph.nodes().size() != 12 || sample_graph.edges().size() != 16)
+    {
+        std::cerr << "Sample city map has unexpected node or edge counts.\n";
+        return 1;
+    }
+
+    std::vector<bool> node_types(5, false);
+    for (std::size_t index = 0; index < sample_graph.nodes().size(); ++index)
+    {
+        const sim::Node& node = sample_graph.nodes()[index];
+        if (node.id.value() != index || !std::isfinite(node.pos_world.x) || !std::isfinite(node.pos_world.y))
+        {
+            std::cerr << "Sample city node IDs or positions are invalid.\n";
+            return 1;
+        }
+        node_types[static_cast<std::size_t>(node.type)] = true;
+    }
+    if (std::find(node_types.begin(), node_types.end(), false) != node_types.end())
+    {
+        std::cerr << "Sample city map does not include every node type.\n";
+        return 1;
+    }
+
+    std::vector<bool> road_classes(4, false);
+    for (std::size_t index = 0; index < sample_graph.edges().size(); ++index)
+    {
+        const sim::Edge& edge = sample_graph.edges()[index];
+        if (edge.id.value() != index || edge.length_m <= 0.0F || edge.speed_limit_mps <= 0.0F ||
+            edge.base_lanes == 0)
+        {
+            std::cerr << "Sample city edge violates graph invariants.\n";
+            return 1;
+        }
+        road_classes[static_cast<std::size_t>(edge.road_class)] = true;
+    }
+    if (std::find(road_classes.begin(), road_classes.end(), false) != road_classes.end())
+    {
+        std::cerr << "Sample city map does not include every road class.\n";
+        return 1;
+    }
+    if (std::find(sample_graph.out_edges()[9].begin(), sample_graph.out_edges()[9].end(),
+                  core::EdgeId{11}) == sample_graph.out_edges()[9].end() ||
+        std::find(sample_graph.out_edges()[10].begin(), sample_graph.out_edges()[10].end(),
+                  core::EdgeId{11}) != sample_graph.out_edges()[10].end())
+    {
+        std::cerr << "Sample city one-way edge has incorrect reverse adjacency.\n";
+        return 1;
+    }
+
+    std::vector<bool> reached(sample_graph.nodes().size(), false);
+    std::queue<core::NodeId> pending;
+    reached[0] = true;
+    pending.push(core::NodeId{0});
+    while (!pending.empty())
+    {
+        const core::NodeId current = pending.front();
+        pending.pop();
+        for (const core::EdgeId edge_id : sample_graph.out_edges()[current.value()])
+        {
+            const sim::Edge& edge = sample_graph.edges()[edge_id.value()];
+            const core::NodeId next = edge.from_node == current ? edge.to_node : edge.from_node;
+            if (!reached[next.value()])
+            {
+                reached[next.value()] = true;
+                pending.push(next);
+            }
+        }
+    }
+    if (std::find(reached.begin(), reached.end(), false) != reached.end())
+    {
+        std::cerr << "Sample city map is not fully reachable from its starting node.\n";
+        return 1;
+    }
+
+    TemporaryMapDirectory temp_directory;
     if (!temp_directory.create(error))
     {
         std::cerr << error << '\n';
