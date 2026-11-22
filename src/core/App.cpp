@@ -33,7 +33,29 @@ constexpr float zoom_per_wheel_unit = 1.1f;
 constexpr float default_ui_scale = 1.0f;
 constexpr float development_ui_scale = 2.0f;
 constexpr float development_visual_scale = 2.0f;
+constexpr float minimum_display_scale = 0.5f;
+constexpr float maximum_display_scale = 5.0f;
 constexpr std::string_view development_display_environment = "TRANSPORT_GRAPH_DEV_DISPLAY";
+
+struct ResolutionPreset
+{
+    const char* label;
+    int width;
+    int height;
+};
+
+constexpr ResolutionPreset resolution_presets[] = {
+    {"1280 x 720", 1280, 720},
+    {"1920 x 1080", 1920, 1080},
+    {"2560 x 1440", 2560, 1440},
+    {"3840 x 2160", 3840, 2160},
+};
+constexpr const char* resolution_labels[] = {
+    "1280 x 720",
+    "1920 x 1080",
+    "2560 x 1440",
+    "3840 x 2160",
+};
 
 bool development_display_enabled() noexcept
 {
@@ -572,13 +594,48 @@ void App::draw_controls()
     ImGui::Begin("Transport Graph");
     ImGui::Text("Sample city: %zu nodes, %zu roads", render_nodes_.size(), render_edges_.size());
 
-    float requested_ui_scale = ui_scale_;
-    if (ImGui::SliderFloat("UI scale", &requested_ui_scale, 0.8f, 2.0f, "%.2fx"))
+    int window_width = 0;
+    int window_height = 0;
+    SDL_GetWindowSize(window_, &window_width, &window_height);
+    int resolution_index = 0;
+    for (int index = 0; index < static_cast<int>(std::size(resolution_presets)); ++index)
     {
+        if (window_width == resolution_presets[index].width &&
+            window_height == resolution_presets[index].height)
+        {
+            resolution_index = index;
+            break;
+        }
+    }
+    if (ImGui::Combo("Resolution", &resolution_index, resolution_labels,
+                     static_cast<int>(std::size(resolution_labels))))
+    {
+        const ResolutionPreset& preset = resolution_presets[resolution_index];
+        SDL_Rect usable_bounds{};
+        int width = preset.width;
+        int height = preset.height;
+        const SDL_DisplayID display = SDL_GetPrimaryDisplay();
+        if (display != 0 && SDL_GetDisplayUsableBounds(display, &usable_bounds) &&
+            usable_bounds.w > 0 && usable_bounds.h > 0)
+        {
+            width = std::min(width, std::max(1, usable_bounds.w * display_safety_margin_percent / 100));
+            height = std::min(height, std::max(1, usable_bounds.h * display_safety_margin_percent / 100));
+        }
+        if (!SDL_SetWindowSize(window_, width, height))
+        {
+            std::cerr << "Unable to set window resolution: " << SDL_GetError() << '\n';
+        }
+    }
+
+    float requested_scale = ui_scale_;
+    if (ImGui::SliderFloat("Display scale", &requested_scale,
+                           minimum_display_scale, maximum_display_scale, "%.2fx"))
+    {
+        requested_scale = std::clamp(requested_scale, minimum_display_scale, maximum_display_scale);
         ImGuiStyle& style = ImGui::GetStyle();
-        style.ScaleAllSizes(requested_ui_scale / ui_scale_);
-        style.FontScaleMain = requested_ui_scale;
-        ui_scale_ = requested_ui_scale;
+        style.FontScaleMain = requested_scale;
+        ui_scale_ = requested_scale;
+        render_options_.visual_scale = requested_scale;
     }
 
     ImGui::Checkbox("Traffic heatmap", &render_options_.show_heatmap);

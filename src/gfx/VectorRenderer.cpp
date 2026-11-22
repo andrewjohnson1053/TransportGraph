@@ -507,7 +507,7 @@ bool VectorRenderer::render(const RenderScene& scene, const core::Camera2D& came
         return false;
     }
 
-    const float visual_scale = std::clamp(options.visual_scale, 0.5f, 2.0f);
+    const float visual_scale = std::clamp(options.visual_scale, 0.5f, 5.0f);
     const float zoom_scale = std::clamp(camera.zoom(), 0.75f, 2.0f) * visual_scale;
     GeometryBatch batch;
     for (const RenderEdge& edge : scene.edges)
